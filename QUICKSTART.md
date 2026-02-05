@@ -1,4 +1,4 @@
-# 🚀 Guide de Démarrage Rapide - CourseShare
+# 🚀 Guide de Démarrage Rapide - Papyrus
 
 ## Installation Express (5 minutes)
 

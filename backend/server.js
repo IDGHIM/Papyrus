@@ -11,6 +11,7 @@ const multer = require('multer');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -48,7 +49,7 @@ const upload = multer({
     }
   },
   limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB max
+    fileSize: 4 * 1024 * 1024 // 4 Mo
   }
 });
 
@@ -76,6 +77,7 @@ const courseSchema = new mongoose.Schema({
   fileSize: { type: Number, required: true },
   owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   shared: { type: Boolean, default: false },
+  shareToken: { type: String, unique: true, sparse: true },
   sharedWith: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   downloads: { type: Number, default: 0 },
   views: { type: Number, default: 0 },
@@ -85,6 +87,11 @@ const courseSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', userSchema);
 const Course = mongoose.model('Course', courseSchema);
+
+// Fonction pour générer un token unique
+function generateShareToken() {
+  return crypto.randomBytes(16).toString('hex');
+}
 
 // Middleware d'authentification
 const authenticateToken = (req, res, next) => {
@@ -343,6 +350,102 @@ app.get('/api/courses/:id/download', authenticateToken, async (req, res) => {
 
     if (!canAccess) {
       return res.status(403).json({ error: 'Accès non autorisé' });
+    }
+
+    // Incrémenter les téléchargements
+    course.downloads += 1;
+    await course.save();
+
+    res.download(course.filePath, course.fileName);
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur lors du téléchargement', details: error.message });
+  }
+});
+
+// Nouvelle route pour générer un lien de partage
+app.post('/api/courses/:id/share-link', authenticateToken, async (req, res) => {
+  try {
+    const course = await Course.findById(req.params.id);
+    
+    if (!course) {
+      return res.status(404).json({ error: 'Cours non trouvé' });
+    }
+
+    // Vérifier que l'utilisateur est le propriétaire
+    if (course.owner.toString() !== req.user.userId) {
+      return res.status(403).json({ error: 'Accès non autorisé' });
+    }
+
+    // Générer un token unique si pas déjà existant
+    if (!course.shareToken) {
+      course.shareToken = generateShareToken();
+      course.shared = true;
+      await course.save();
+    }
+
+    const shareLink = `${req.protocol}://${req.get('host')}/share/${course.shareToken}`;
+
+    res.json({
+      message: 'Lien de partage généré',
+      shareLink,
+      shareToken: course.shareToken
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur lors de la génération du lien', details: error.message });
+  }
+});
+
+// Route pour révoquer un lien de partage
+app.delete('/api/courses/:id/share-link', authenticateToken, async (req, res) => {
+  try {
+    const course = await Course.findById(req.params.id);
+    
+    if (!course) {
+      return res.status(404).json({ error: 'Cours non trouvé' });
+    }
+
+    // Vérifier que l'utilisateur est le propriétaire
+    if (course.owner.toString() !== req.user.userId) {
+      return res.status(403).json({ error: 'Accès non autorisé' });
+    }
+
+    course.shareToken = null;
+    course.shared = false;
+    await course.save();
+
+    res.json({ message: 'Lien de partage révoqué avec succès' });
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur lors de la révocation du lien', details: error.message });
+  }
+});
+
+// Route pour accéder à un cours via le lien de partage (sans authentification)
+app.get('/api/courses/share/:token', async (req, res) => {
+  try {
+    const course = await Course.findOne({ shareToken: req.params.token })
+      .populate('owner', 'username email');
+    
+    if (!course) {
+      return res.status(404).json({ error: 'Cours non trouvé ou lien invalide' });
+    }
+
+    // Incrémenter les vues
+    course.views += 1;
+    await course.save();
+
+    res.json(course);
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur lors de la récupération du cours', details: error.message });
+  }
+});
+
+// Route pour télécharger via le lien de partage (sans authentification)
+app.get('/api/courses/share/:token/download', async (req, res) => {
+  try {
+    const course = await Course.findOne({ shareToken: req.params.token });
+    
+    if (!course) {
+      return res.status(404).json({ error: 'Cours non trouvé ou lien invalide' });
     }
 
     // Incrémenter les téléchargements

@@ -1,4 +1,4 @@
-# CourseShare - Plateforme de Partage de Cours PDF
+# Papyrus - Plateforme de Partage de Cours PDF
 
 Une application web complète permettant aux utilisateurs de télécharger, partager et gérer des cours au format PDF avec un système d'authentification multi-utilisateurs.
 
@@ -143,7 +143,7 @@ L'application React démarre sur `http://localhost:5173` (ou le port indiqué)
 ## 🗂️ Structure du Projet
 
 ```
-course-share/
+papyrus/
 ├── backend/
 │   ├── server.js           # Point d'entrée du serveur
 │   ├── package.json        # Dépendances backend
@@ -196,7 +196,7 @@ Dans `backend/server.js` :
 
 ```javascript
 limits: {
-  fileSize: 10 * 1024 * 1024 // Modifier la taille max
+  fileSize: 4 * 1024 * 1024 // 4 Mo
 }
 ```
 
