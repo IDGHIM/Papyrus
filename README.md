@@ -124,7 +124,7 @@ L'application React démarre sur `http://localhost:5173` (ou le port indiqué)
 
 ### 2. Ajouter un Cours
 - Cliquez sur la zone d'upload
-- Sélectionnez un fichier PDF (max 10 MB)
+- Sélectionnez un fichier PDF (max 4 Mo)
 - Le cours est ajouté automatiquement
 
 ### 3. Gérer vos Cours

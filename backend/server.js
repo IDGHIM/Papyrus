@@ -1,7 +1,5 @@
 // server.js - Backend Node.js avec Express et MongoDB
 require('dotenv').config();
-console.log('🔍 Test .env - MONGODB_URI:', process.env.MONGODB_URI ? '✅ Trouvé' : '❌ Non trouvé');
-console.log('🔍 URI complète:', process.env.MONGODB_URI);
 
 const express = require('express');
 const mongoose = require('mongoose');
@@ -49,7 +47,7 @@ const upload = multer({
     }
   },
   limits: {
-    fileSize: 4 * 1024 * 1024 // 4 Mo
+    fileSize: 10 * 1024 * 1024 // 10MB max
   }
 });
 
@@ -214,6 +212,7 @@ app.post('/api/courses', authenticateToken, upload.single('file'), async (req, r
   }
 });
 
+// Récupérer les cours de l'utilisateur (mes cours)
 app.get('/api/courses', authenticateToken, async (req, res) => {
   try {
     const { search } = req.query;
@@ -246,6 +245,106 @@ app.get('/api/courses', authenticateToken, async (req, res) => {
     res.json(courses);
   } catch (error) {
     res.status(500).json({ error: 'Erreur lors de la récupération des cours', details: error.message });
+  }
+});
+
+// Récupérer uniquement les cours de l'utilisateur
+app.get('/api/courses/my-courses', authenticateToken, async (req, res) => {
+  try {
+    const { search } = req.query;
+    
+    let query = { owner: req.user.userId };
+
+    if (search) {
+      query.$and = [
+        { owner: req.user.userId },
+        {
+          $or: [
+            { title: { $regex: search, $options: 'i' } },
+            { description: { $regex: search, $options: 'i' } }
+          ]
+        }
+      ];
+      delete query.owner;
+    }
+
+    const courses = await Course.find(query)
+      .populate('owner', 'username email')
+      .sort({ createdAt: -1 });
+
+    res.json(courses);
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur lors de la récupération des cours', details: error.message });
+  }
+});
+
+// Récupérer tous les cours publics (découvrir)
+app.get('/api/courses/public', authenticateToken, async (req, res) => {
+  try {
+    const { search, sort } = req.query;
+    
+    let query = { shared: true };
+
+    if (search) {
+      query.$and = [
+        { shared: true },
+        {
+          $or: [
+            { title: { $regex: search, $options: 'i' } },
+            { description: { $regex: search, $options: 'i' } }
+          ]
+        }
+      ];
+      delete query.shared;
+    }
+
+    let sortOptions = { createdAt: -1 }; // Par défaut: plus récents
+
+    if (sort === 'popular') {
+      sortOptions = { views: -1 };
+    } else if (sort === 'downloads') {
+      sortOptions = { downloads: -1 };
+    } else if (sort === 'recent') {
+      sortOptions = { createdAt: -1 };
+    }
+
+    const courses = await Course.find(query)
+      .populate('owner', 'username email')
+      .sort(sortOptions);
+
+    res.json(courses);
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur lors de la récupération des cours publics', details: error.message });
+  }
+});
+
+// Récupérer les cours partagés avec moi
+app.get('/api/courses/shared-with-me', authenticateToken, async (req, res) => {
+  try {
+    const { search } = req.query;
+    
+    let query = { sharedWith: req.user.userId };
+
+    if (search) {
+      query.$and = [
+        { sharedWith: req.user.userId },
+        {
+          $or: [
+            { title: { $regex: search, $options: 'i' } },
+            { description: { $regex: search, $options: 'i' } }
+          ]
+        }
+      ];
+      delete query.sharedWith;
+    }
+
+    const courses = await Course.find(query)
+      .populate('owner', 'username email')
+      .sort({ createdAt: -1 });
+
+    res.json(courses);
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur lors de la récupération des cours partagés', details: error.message });
   }
 });
 
@@ -362,7 +461,7 @@ app.get('/api/courses/:id/download', authenticateToken, async (req, res) => {
   }
 });
 
-// Nouvelle route pour générer un lien de partage
+// Générer un lien de partage
 app.post('/api/courses/:id/share-link', authenticateToken, async (req, res) => {
   try {
     const course = await Course.findById(req.params.id);
@@ -395,7 +494,7 @@ app.post('/api/courses/:id/share-link', authenticateToken, async (req, res) => {
   }
 });
 
-// Route pour révoquer un lien de partage
+// Révoquer un lien de partage
 app.delete('/api/courses/:id/share-link', authenticateToken, async (req, res) => {
   try {
     const course = await Course.findById(req.params.id);
@@ -410,7 +509,6 @@ app.delete('/api/courses/:id/share-link', authenticateToken, async (req, res) =>
     }
 
     course.shareToken = null;
-    course.shared = false;
     await course.save();
 
     res.json({ message: 'Lien de partage révoqué avec succès' });
@@ -419,7 +517,7 @@ app.delete('/api/courses/:id/share-link', authenticateToken, async (req, res) =>
   }
 });
 
-// Route pour accéder à un cours via le lien de partage (sans authentification)
+// Accéder à un cours via le lien de partage (sans authentification)
 app.get('/api/courses/share/:token', async (req, res) => {
   try {
     const course = await Course.findOne({ shareToken: req.params.token })
@@ -439,7 +537,7 @@ app.get('/api/courses/share/:token', async (req, res) => {
   }
 });
 
-// Route pour télécharger via le lien de partage (sans authentification)
+// Télécharger via le lien de partage (sans authentification)
 app.get('/api/courses/share/:token/download', async (req, res) => {
   try {
     const course = await Course.findOne({ shareToken: req.params.token });

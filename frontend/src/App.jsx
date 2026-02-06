@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, FileText, Share2, Download, Trash2, Search, Eye, LogOut, User, Lock, Mail, X, Copy, Link as LinkIcon, ArrowLeft } from 'lucide-react';
+import { Upload, FileText, Share2, Download, Trash2, Search, Eye, LogOut, User, Lock, Mail, X, Copy, Link as LinkIcon, ArrowLeft, TrendingUp, Clock, Download as DownloadIcon } from 'lucide-react';
 
 const API_URL = 'http://localhost:5000/api';
+const BASE_URL = 'http://localhost:5000';
 
 export default function CourseShareApp() {
   // États d'authentification
@@ -11,8 +12,10 @@ export default function CourseShareApp() {
   const [authMode, setAuthMode] = useState('login');
   
   // États de l'application
+  const [activeTab, setActiveTab] = useState('my-courses'); // 'my-courses', 'discover', 'shared'
   const [courses, setCourses] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState('recent'); // 'recent', 'popular', 'downloads'
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -55,10 +58,16 @@ export default function CourseShareApp() {
         setIsAuthenticated(true);
         setUser(JSON.parse(userData));
         setShowAuthModal(false);
-        loadCourses();
+        loadCourses('my-courses');
       }
     }
   }, []);
+
+  useEffect(() => {
+    if (isAuthenticated && !isPublicView) {
+      loadCourses(activeTab);
+    }
+  }, [activeTab, sortBy]);
 
   const loadPublicCourse = async (token) => {
     setPublicLoading(true);
@@ -140,7 +149,7 @@ export default function CourseShareApp() {
       setShowAuthModal(false);
       setAuthForm({ username: '', email: '', password: '', confirmPassword: '' });
       
-      await loadCourses();
+      await loadCourses('my-courses');
     } catch (error) {
       alert(error.message);
     } finally {
@@ -157,10 +166,34 @@ export default function CourseShareApp() {
     setShowAuthModal(true);
   };
 
-  const loadCourses = async () => {
+  const loadCourses = async (tab = activeTab) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/courses`, {
+      let endpoint = '';
+      let params = new URLSearchParams();
+
+      if (searchTerm) {
+        params.append('search', searchTerm);
+      }
+
+      switch (tab) {
+        case 'my-courses':
+          endpoint = '/courses/my-courses';
+          break;
+        case 'discover':
+          endpoint = '/courses/public';
+          params.append('sort', sortBy);
+          break;
+        case 'shared':
+          endpoint = '/courses/shared-with-me';
+          break;
+        default:
+          endpoint = '/courses';
+      }
+
+      const url = `${API_URL}${endpoint}${params.toString() ? '?' + params.toString() : ''}`;
+      
+      const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -178,6 +211,11 @@ export default function CourseShareApp() {
     const file = event.target.files[0];
     if (!file || file.type !== 'application/pdf') {
       alert('Veuillez sélectionner un fichier PDF');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Le fichier est trop volumineux. Taille maximale : 10 Mo');
       return;
     }
 
@@ -326,10 +364,12 @@ export default function CourseShareApp() {
     }
   };
 
-  const filteredCourses = courses.filter(course =>
-    course.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    course.description?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleSearch = (value) => {
+    setSearchTerm(value);
+    setTimeout(() => loadCourses(), 300);
+  };
+
+  const filteredCourses = courses;
 
   const formatFileSize = (bytes) => {
     if (bytes < 1024) return bytes + ' B';
@@ -459,7 +499,7 @@ export default function CourseShareApp() {
             {/* PDF Viewer */}
             <div className="border-2 border-white/20 rounded-2xl overflow-hidden bg-white">
               <iframe
-                src={`http://localhost:5000/${publicCourse.filePath}`}
+                src={`${BASE_URL}/${publicCourse.filePath}`}
                 className="w-full h-[800px] border-0"
                 title={publicCourse.title}
               />
@@ -686,37 +726,98 @@ export default function CourseShareApp() {
           </div>
         </div>
 
-        {/* Upload Section */}
-        <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl p-6 mb-6 border border-white/20">
-          <label className="flex flex-col items-center justify-center border-2 border-dashed border-purple-400/50 rounded-2xl p-8 cursor-pointer hover:border-purple-400 hover:bg-white/5 transition-all group">
-            <Upload className="w-12 h-12 text-purple-400 mb-3 group-hover:scale-110 transition-transform" />
-            <span className="text-lg font-semibold text-white mb-1">
-              {uploadProgress ? 'Téléchargement en cours...' : 'Cliquez pour ajouter un PDF'}
-            </span>
-            <span className="text-sm text-purple-300">
-              Taille maximale: 10 MB
-            </span>
-            <input
-              type="file"
-              accept=".pdf,application/pdf"
-              onChange={handleFileUpload}
-              className="hidden"
-              disabled={uploadProgress}
-            />
-          </label>
+        {/* Tabs Navigation */}
+        <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl p-2 mb-6 border border-white/20">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setActiveTab('my-courses')}
+              className={`flex-1 py-3 px-6 rounded-2xl font-semibold transition-all ${
+                activeTab === 'my-courses'
+                  ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
+                  : 'text-purple-200 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <FileText className="w-5 h-5" />
+                Mes Cours
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('discover')}
+              className={`flex-1 py-3 px-6 rounded-2xl font-semibold transition-all ${
+                activeTab === 'discover'
+                  ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
+                  : 'text-purple-200 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <Search className="w-5 h-5" />
+                Découvrir
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('shared')}
+              className={`flex-1 py-3 px-6 rounded-2xl font-semibold transition-all ${
+                activeTab === 'shared'
+                  ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
+                  : 'text-purple-200 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <Share2 className="w-5 h-5" />
+                Partagés avec moi
+              </div>
+            </button>
+          </div>
         </div>
 
-        {/* Search Bar */}
+        {/* Upload Section - Only visible on "Mes Cours" */}
+        {activeTab === 'my-courses' && (
+          <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl p-6 mb-6 border border-white/20">
+            <label className="flex flex-col items-center justify-center border-2 border-dashed border-purple-400/50 rounded-2xl p-8 cursor-pointer hover:border-purple-400 hover:bg-white/5 transition-all group">
+              <Upload className="w-12 h-12 text-purple-400 mb-3 group-hover:scale-110 transition-transform" />
+              <span className="text-lg font-semibold text-white mb-1">
+                {uploadProgress ? 'Téléchargement en cours...' : 'Cliquez pour ajouter un PDF'}
+              </span>
+              <span className="text-sm text-purple-300">
+                Taille maximale: 10 Mo
+              </span>
+              <input
+                type="file"
+                accept=".pdf,application/pdf"
+                onChange={handleFileUpload}
+                className="hidden"
+                disabled={uploadProgress}
+              />
+            </label>
+          </div>
+        )}
+
+        {/* Search and Sort Bar */}
         <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl p-4 mb-6 border border-white/20">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-300 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="Rechercher un cours..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-            />
+          <div className="flex gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-300 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Rechercher un cours..."
+                value={searchTerm}
+                onChange={(e) => handleSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+              />
+            </div>
+            
+            {activeTab === 'discover' && (
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-purple-500 outline-none cursor-pointer"
+              >
+                <option value="recent" className="bg-slate-800">Plus récents</option>
+                <option value="popular" className="bg-slate-800">Plus populaires</option>
+                <option value="downloads" className="bg-slate-800">Plus téléchargés</option>
+              </select>
+            )}
           </div>
         </div>
 
@@ -726,7 +827,13 @@ export default function CourseShareApp() {
             <div className="col-span-full text-center py-16 bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20">
               <FileText className="w-20 h-20 text-purple-400 mx-auto mb-4" />
               <p className="text-purple-200 text-lg">
-                {searchTerm ? 'Aucun cours trouvé' : 'Aucun cours disponible. Commencez par en ajouter un !'}
+                {searchTerm 
+                  ? 'Aucun cours trouvé' 
+                  : activeTab === 'my-courses'
+                  ? 'Aucun cours disponible. Commencez par en ajouter un !'
+                  : activeTab === 'discover'
+                  ? 'Aucun cours public disponible pour le moment.'
+                  : 'Aucun cours partagé avec vous.'}
               </p>
             </div>
           ) : (
@@ -737,7 +844,7 @@ export default function CourseShareApp() {
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
-                    <h3 className="text-xl font-bold text-white mb-2 group-hover:text-purple-300 transition-colors">
+                    <h3 className="text-xl font-bold text-white mb-2 group-hover:text-purple-300 transition-colors line-clamp-2">
                       {course.title}
                     </h3>
                     <p className="text-sm text-purple-300 mb-2">
@@ -767,41 +874,70 @@ export default function CourseShareApp() {
 
                 <div className="flex items-center gap-2 text-sm text-purple-300 mb-4">
                   <Eye className="w-4 h-4" />
-                  <span>{course.views} vues</span>
+                  <span>{course.views}</span>
                   <Download className="w-4 h-4 ml-2" />
-                  <span>{course.downloads} téléchargements</span>
+                  <span>{course.downloads}</span>
                 </div>
 
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setSelectedCourse(course)}
-                    className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2 rounded-xl hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg"
-                  >
-                    <Eye className="w-4 h-4" />
-                    Voir
-                  </button>
-                  {isOwner(course) && (
+                <div className="space-y-2">
+                  {/* Première ligne - Actions principales */}
+                  <div className="flex gap-2">
                     <button
-                      onClick={() => generateShareLink(course)}
-                      className="flex items-center justify-center gap-2 bg-green-500/20 backdrop-blur text-green-300 px-4 py-2 rounded-xl hover:bg-green-500/30 transition-all border border-green-500/30"
-                      title="Générer un lien de partage"
+                      onClick={() => setSelectedCourse(course)}
+                      className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2 rounded-xl hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg"
                     >
-                      <Share2 className="w-4 h-4" />
+                      <Eye className="w-4 h-4" />
+                      Voir
                     </button>
-                  )}
-                  <button
-                    onClick={() => downloadPDF(course._id, course.fileName)}
-                    className="flex items-center justify-center gap-2 bg-blue-500/20 backdrop-blur text-blue-300 px-4 py-2 rounded-xl hover:bg-blue-500/30 transition-all border border-blue-500/30"
-                  >
-                    <Download className="w-4 h-4" />
-                  </button>
-                  {isOwner(course) && (
                     <button
-                      onClick={() => deleteCourse(course._id)}
-                      className="flex items-center justify-center gap-2 bg-red-500/20 backdrop-blur text-red-300 px-4 py-2 rounded-xl hover:bg-red-500/30 transition-all border border-red-500/30"
+                      onClick={() => downloadPDF(course._id, course.fileName)}
+                      className="flex items-center justify-center gap-2 bg-blue-500/20 backdrop-blur text-blue-300 px-4 py-2 rounded-xl hover:bg-blue-500/30 transition-all border border-blue-500/30"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Download className="w-4 h-4" />
                     </button>
+                    {isOwner(course) && (
+                      <button
+                        onClick={() => deleteCourse(course._id)}
+                        className="flex items-center justify-center gap-2 bg-red-500/20 backdrop-blur text-red-300 px-4 py-2 rounded-xl hover:bg-red-500/30 transition-all border border-red-500/30"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Deuxième ligne - Partage (uniquement pour le propriétaire) */}
+                  {isOwner(course) && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => toggleShare(course)}
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl transition-all font-semibold ${
+                          course.shared
+                            ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30 hover:bg-orange-500/30'
+                            : 'bg-green-500/20 text-green-300 border border-green-500/30 hover:bg-green-500/30'
+                        }`}
+                        title={course.shared ? 'Rendre privé' : 'Rendre public'}
+                      >
+                        {course.shared ? (
+                          <>
+                            <X className="w-4 h-4" />
+                            <span className="text-sm">Rendre Privé</span>
+                          </>
+                        ) : (
+                          <>
+                            <Share2 className="w-4 h-4" />
+                            <span className="text-sm">Rendre Public</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => generateShareLink(course)}
+                        className="flex items-center justify-center gap-2 bg-purple-500/20 backdrop-blur text-purple-300 px-4 py-2 rounded-xl hover:bg-purple-500/30 transition-all border border-purple-500/30"
+                        title="Générer un lien de partage"
+                      >
+                        <LinkIcon className="w-4 h-4" />
+                        <span className="text-sm">Lien</span>
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -894,7 +1030,7 @@ export default function CourseShareApp() {
               <div className="flex-1 overflow-auto p-6">
                 <div className="bg-white rounded-2xl overflow-hidden">
                   <iframe
-                    src={`http://localhost:5000/${selectedCourse.filePath}`}
+                    src={`${BASE_URL}/${selectedCourse.filePath}`}
                     className="w-full h-full min-h-[700px] border-0"
                     title={selectedCourse.title}
                   />

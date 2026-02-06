@@ -117,7 +117,7 @@ course-share/
 ## 🔑 Fonctionnalités Clés
 
 ✅ Authentification sécurisée (JWT + bcrypt)
-✅ Upload de PDF jusqu'à 10 MB
+✅ Upload de PDF jusqu'à 4 Mo
 ✅ Partage public/privé
 ✅ Visualisation PDF intégrée
 ✅ Recherche en temps réel
