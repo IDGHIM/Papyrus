@@ -16,9 +16,39 @@ export default function CourseShareApp() {
   const [courses, setCourses] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('recent'); // 'recent', 'popular', 'downloads'
+  const [categoryFilter, setCategoryFilter] = useState('Toutes');
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // États pour le modal d'upload
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadForm, setUploadForm] = useState({
+    title: '',
+    category: 'Autre',
+    file: null
+  });
+
+  // Liste des catégories
+  const categories = [
+    'Toutes',
+    'Mathématiques',
+    'Physique',
+    'Chimie',
+    'Informatique',
+    'Histoire',
+    'Géographie',
+    'Philosophie',
+    'Langues',
+    'Économie',
+    'Droit',
+    'Médecine',
+    'Biologie',
+    'Littérature',
+    'Arts',
+    'Sport',
+    'Autre'
+  ];
 
   // États pour le partage de lien
   const [showShareModal, setShowShareModal] = useState(false);
@@ -67,7 +97,7 @@ export default function CourseShareApp() {
     if (isAuthenticated && !isPublicView) {
       loadCourses(activeTab);
     }
-  }, [activeTab, sortBy]);
+  }, [activeTab, sortBy, categoryFilter]);
 
   const loadPublicCourse = async (token) => {
     setPublicLoading(true);
@@ -176,6 +206,10 @@ export default function CourseShareApp() {
         params.append('search', searchTerm);
       }
 
+      if (categoryFilter && categoryFilter !== 'Toutes') {
+        params.append('category', categoryFilter);
+      }
+
       switch (tab) {
         case 'my-courses':
           endpoint = '/courses/my-courses';
@@ -207,7 +241,7 @@ export default function CourseShareApp() {
     }
   };
 
-  const handleFileUpload = async (event) => {
+  const handleFileSelect = (event) => {
     const file = event.target.files[0];
     if (!file || file.type !== 'application/pdf') {
       alert('Veuillez sélectionner un fichier PDF');
@@ -219,12 +253,25 @@ export default function CourseShareApp() {
       return;
     }
 
+    setUploadForm({
+      ...uploadForm,
+      file: file,
+      title: file.name.replace('.pdf', '')
+    });
+    setShowUploadModal(true);
+    event.target.value = '';
+  };
+
+  const handleFileUpload = async () => {
+    if (!uploadForm.file) return;
+
     setUploadProgress(true);
 
     try {
       const formData = new FormData();
-      formData.append('file', file);
-      formData.append('title', file.name.replace('.pdf', ''));
+      formData.append('file', uploadForm.file);
+      formData.append('title', uploadForm.title);
+      formData.append('category', uploadForm.category);
       formData.append('shared', 'false');
 
       const token = localStorage.getItem('token');
@@ -237,13 +284,14 @@ export default function CourseShareApp() {
       if (!response.ok) throw new Error('Erreur lors de l\'upload');
 
       await loadCourses();
+      setShowUploadModal(false);
+      setUploadForm({ title: '', category: 'Autre', file: null });
       alert('Cours ajouté avec succès !');
     } catch (error) {
       console.error('Erreur:', error);
       alert('Erreur lors de l\'upload du fichier');
     } finally {
       setUploadProgress(false);
-      event.target.value = '';
     }
   };
 
@@ -387,6 +435,28 @@ export default function CourseShareApp() {
   };
 
   const isOwner = (course) => course.owner._id === user?.id || course.owner === user?.id;
+
+  const getCategoryColor = (category) => {
+    const colors = {
+      'Mathématiques': 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+      'Physique': 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
+      'Chimie': 'bg-green-500/20 text-green-300 border-green-500/30',
+      'Informatique': 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+      'Histoire': 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+      'Géographie': 'bg-teal-500/20 text-teal-300 border-teal-500/30',
+      'Philosophie': 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+      'Langues': 'bg-pink-500/20 text-pink-300 border-pink-500/30',
+      'Économie': 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+      'Droit': 'bg-red-500/20 text-red-300 border-red-500/30',
+      'Médecine': 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+      'Biologie': 'bg-lime-500/20 text-lime-300 border-lime-500/30',
+      'Littérature': 'bg-violet-500/20 text-violet-300 border-violet-500/30',
+      'Arts': 'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30',
+      'Sport': 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+      'Autre': 'bg-gray-500/20 text-gray-300 border-gray-500/30'
+    };
+    return colors[category] || colors['Autre'];
+  };
 
   // Vue publique pour les liens partagés
   if (isPublicView) {
@@ -777,7 +847,7 @@ export default function CourseShareApp() {
             <label className="flex flex-col items-center justify-center border-2 border-dashed border-purple-400/50 rounded-2xl p-8 cursor-pointer hover:border-purple-400 hover:bg-white/5 transition-all group">
               <Upload className="w-12 h-12 text-purple-400 mb-3 group-hover:scale-110 transition-transform" />
               <span className="text-lg font-semibold text-white mb-1">
-                {uploadProgress ? 'Téléchargement en cours...' : 'Cliquez pour ajouter un PDF'}
+                Cliquez pour ajouter un PDF
               </span>
               <span className="text-sm text-purple-300">
                 Taille maximale: 10 Mo
@@ -785,9 +855,8 @@ export default function CourseShareApp() {
               <input
                 type="file"
                 accept=".pdf,application/pdf"
-                onChange={handleFileUpload}
+                onChange={handleFileSelect}
                 className="hidden"
-                disabled={uploadProgress}
               />
             </label>
           </div>
@@ -795,8 +864,8 @@ export default function CourseShareApp() {
 
         {/* Search and Sort Bar */}
         <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl p-4 mb-6 border border-white/20">
-          <div className="flex gap-4">
-            <div className="relative flex-1">
+          <div className="flex gap-4 flex-wrap">
+            <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-300 w-5 h-5" />
               <input
                 type="text"
@@ -807,6 +876,16 @@ export default function CourseShareApp() {
               />
             </div>
             
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-purple-500 outline-none cursor-pointer"
+            >
+              {categories.map(cat => (
+                <option key={cat} value={cat} className="bg-slate-800">{cat}</option>
+              ))}
+            </select>
+
             {activeTab === 'discover' && (
               <select
                 value={sortBy}
@@ -850,6 +929,11 @@ export default function CourseShareApp() {
                     <p className="text-sm text-purple-300 mb-2">
                       Par {course.owner.username}
                     </p>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`px-2 py-1 rounded-lg text-xs font-semibold border ${getCategoryColor(course.category || 'Autre')}`}>
+                        {course.category || 'Autre'}
+                      </span>
+                    </div>
                     <div className="flex items-center gap-3 text-xs text-purple-400">
                       <span>{formatFileSize(course.fileSize)}</span>
                       <span>•</span>
@@ -944,6 +1028,83 @@ export default function CourseShareApp() {
             ))
           )}
         </div>
+
+        {/* Upload Modal */}
+        {showUploadModal && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+            <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl max-w-md w-full p-6 border border-white/20">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold text-white">Ajouter un cours</h2>
+                <button
+                  onClick={() => {
+                    setShowUploadModal(false);
+                    setUploadForm({ title: '', category: 'Autre', file: null });
+                  }}
+                  className="text-purple-300 hover:text-white bg-white/10 hover:bg-white/20 rounded-xl p-2 transition-all"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-purple-200 mb-2">
+                    Titre du cours
+                  </label>
+                  <input
+                    type="text"
+                    value={uploadForm.title}
+                    onChange={(e) => setUploadForm({ ...uploadForm, title: e.target.value })}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300 focus:ring-2 focus:ring-purple-500 outline-none"
+                    placeholder="Ex: Cours de mathématiques"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-purple-200 mb-2">
+                    Catégorie
+                  </label>
+                  <select
+                    value={uploadForm.category}
+                    onChange={(e) => setUploadForm({ ...uploadForm, category: e.target.value })}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-purple-500 outline-none cursor-pointer"
+                  >
+                    {categories.filter(cat => cat !== 'Toutes').map(cat => (
+                      <option key={cat} value={cat} className="bg-slate-800">{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-3">
+                  <p className="text-sm text-purple-200">
+                    <strong>Fichier :</strong> {uploadForm.file?.name}
+                  </p>
+                  <p className="text-xs text-purple-300 mt-1">
+                    {uploadForm.file && formatFileSize(uploadForm.file.size)}
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleFileUpload}
+                  disabled={uploadProgress || !uploadForm.title}
+                  className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-3 rounded-xl font-semibold hover:from-purple-600 hover:to-pink-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg flex items-center justify-center gap-2"
+                >
+                  {uploadProgress ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      Téléchargement...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-5 h-5" />
+                      Ajouter le cours
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Share Link Modal */}
         {showShareModal && (

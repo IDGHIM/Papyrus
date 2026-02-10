@@ -70,6 +70,7 @@ const userSchema = new mongoose.Schema({
 const courseSchema = new mongoose.Schema({
   title: { type: String, required: true },
   description: { type: String, default: '' },
+  category: { type: String, default: 'Autre' },
   fileName: { type: String, required: true },
   filePath: { type: String, required: true },
   fileSize: { type: Number, required: true },
@@ -189,11 +190,12 @@ app.post('/api/courses', authenticateToken, upload.single('file'), async (req, r
       return res.status(400).json({ error: 'Fichier manquant' });
     }
 
-    const { title, description, shared } = req.body;
+    const { title, description, shared, category } = req.body;
 
     const course = new Course({
       title: title || req.file.originalname.replace('.pdf', ''),
       description: description || '',
+      category: category || 'Autre',
       fileName: req.file.originalname,
       filePath: req.file.path,
       fileSize: req.file.size,
@@ -251,21 +253,32 @@ app.get('/api/courses', authenticateToken, async (req, res) => {
 // Récupérer uniquement les cours de l'utilisateur
 app.get('/api/courses/my-courses', authenticateToken, async (req, res) => {
   try {
-    const { search } = req.query;
+    const { search, category } = req.query;
     
     let query = { owner: req.user.userId };
 
+    // Filtrer par catégorie si spécifiée
+    if (category && category !== 'Toutes') {
+      query.category = category;
+    }
+
     if (search) {
-      query.$and = [
-        { owner: req.user.userId },
-        {
-          $or: [
-            { title: { $regex: search, $options: 'i' } },
-            { description: { $regex: search, $options: 'i' } }
-          ]
-        }
-      ];
-      delete query.owner;
+      const baseQuery = { owner: req.user.userId };
+      if (category && category !== 'Toutes') {
+        baseQuery.category = category;
+      }
+      
+      query = {
+        $and: [
+          baseQuery,
+          {
+            $or: [
+              { title: { $regex: search, $options: 'i' } },
+              { description: { $regex: search, $options: 'i' } }
+            ]
+          }
+        ]
+      };
     }
 
     const courses = await Course.find(query)
@@ -281,21 +294,32 @@ app.get('/api/courses/my-courses', authenticateToken, async (req, res) => {
 // Récupérer tous les cours publics (découvrir)
 app.get('/api/courses/public', authenticateToken, async (req, res) => {
   try {
-    const { search, sort } = req.query;
+    const { search, sort, category } = req.query;
     
     let query = { shared: true };
 
+    // Filtrer par catégorie si spécifiée
+    if (category && category !== 'Toutes') {
+      query.category = category;
+    }
+
     if (search) {
-      query.$and = [
-        { shared: true },
-        {
-          $or: [
-            { title: { $regex: search, $options: 'i' } },
-            { description: { $regex: search, $options: 'i' } }
-          ]
-        }
-      ];
-      delete query.shared;
+      const baseQuery = { shared: true };
+      if (category && category !== 'Toutes') {
+        baseQuery.category = category;
+      }
+
+      query = {
+        $and: [
+          baseQuery,
+          {
+            $or: [
+              { title: { $regex: search, $options: 'i' } },
+              { description: { $regex: search, $options: 'i' } }
+            ]
+          }
+        ]
+      };
     }
 
     let sortOptions = { createdAt: -1 }; // Par défaut: plus récents
@@ -389,11 +413,12 @@ app.patch('/api/courses/:id', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Accès non autorisé' });
     }
 
-    const { title, description, shared } = req.body;
+    const { title, description, shared, category } = req.body;
 
     if (title !== undefined) course.title = title;
     if (description !== undefined) course.description = description;
     if (shared !== undefined) course.shared = shared;
+    if (category !== undefined) course.category = category;
     course.updatedAt = Date.now();
 
     await course.save();
@@ -553,6 +578,16 @@ app.get('/api/courses/share/:token/download', async (req, res) => {
     res.download(course.filePath, course.fileName);
   } catch (error) {
     res.status(500).json({ error: 'Erreur lors du téléchargement', details: error.message });
+  }
+});
+
+// Récupérer toutes les catégories utilisées
+app.get('/api/categories', authenticateToken, async (req, res) => {
+  try {
+    const categories = await Course.distinct('category');
+    res.json(categories.filter(c => c).sort());
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur lors de la récupération des catégories', details: error.message });
   }
 });
 
