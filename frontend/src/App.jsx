@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, FileText, Share2, Download, Trash2, Search, Eye, LogOut, User, Lock, Mail, X, Copy, Link as LinkIcon, ArrowLeft, TrendingUp, Clock, Download as DownloadIcon } from 'lucide-react';
+import { Upload, FileText, Share2, Download, Trash2, Search, Eye, LogOut, User, Lock, Mail, X, Copy, Link as LinkIcon, ArrowLeft, TrendingUp, Clock, Download as DownloadIcon, Star, Users, Award, BookOpen, Sparkles, Zap, Heart, MessageSquare } from 'lucide-react';
 
 const API_URL = 'http://localhost:5000/api';
 const BASE_URL = 'http://localhost:5000';
@@ -12,10 +12,10 @@ export default function CourseShareApp() {
   const [authMode, setAuthMode] = useState('login');
   
   // États de l'application
-  const [activeTab, setActiveTab] = useState('my-courses'); // 'my-courses', 'discover', 'shared'
+  const [activeTab, setActiveTab] = useState('my-courses');
   const [courses, setCourses] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState('recent'); // 'recent', 'popular', 'downloads'
+  const [sortBy, setSortBy] = useState('recent');
   const [categoryFilter, setCategoryFilter] = useState('Toutes');
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(false);
@@ -28,6 +28,17 @@ export default function CourseShareApp() {
     category: 'Autre',
     file: null
   });
+
+  // États pour les favoris
+  const [favorites, setFavorites] = useState([]);
+  const [showFavorites, setShowFavorites] = useState(false);
+
+  // États pour les commentaires et évaluations
+  const [comments, setComments] = useState([]);
+  const [showComments, setShowComments] = useState(false);
+  const [newComment, setNewComment] = useState('');
+  const [newRating, setNewRating] = useState(0);
+  const [currentCourseForComments, setCurrentCourseForComments] = useState(null);
 
   // Liste des catégories
   const categories = [
@@ -71,7 +82,6 @@ export default function CourseShareApp() {
   });
 
   useEffect(() => {
-    // Vérifier si on est sur une URL de partage public
     const path = window.location.pathname;
     const shareMatch = path.match(/^\/share\/([a-f0-9]+)$/);
     
@@ -80,7 +90,6 @@ export default function CourseShareApp() {
       setIsPublicView(true);
       loadPublicCourse(token);
     } else {
-      // Mode normal - vérifier l'authentification
       const token = localStorage.getItem('token');
       const userData = localStorage.getItem('user');
       
@@ -89,6 +98,7 @@ export default function CourseShareApp() {
         setUser(JSON.parse(userData));
         setShowAuthModal(false);
         loadCourses('my-courses');
+        loadFavorites();
       }
     }
   }, []);
@@ -180,6 +190,7 @@ export default function CourseShareApp() {
       setAuthForm({ username: '', email: '', password: '', confirmPassword: '' });
       
       await loadCourses('my-courses');
+      await loadFavorites();
     } catch (error) {
       alert(error.message);
     } finally {
@@ -193,6 +204,7 @@ export default function CourseShareApp() {
     setIsAuthenticated(false);
     setUser(null);
     setCourses([]);
+    setFavorites([]);
     setShowAuthModal(true);
   };
 
@@ -238,6 +250,119 @@ export default function CourseShareApp() {
     } catch (error) {
       console.error('Erreur:', error);
       alert('Erreur lors du chargement des cours');
+    }
+  };
+
+  // Fonctions pour les favoris
+  const loadFavorites = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/favorites`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!response.ok) throw new Error('Erreur lors du chargement des favoris');
+
+      const data = await response.json();
+      setFavorites(data);
+    } catch (error) {
+      console.error('Erreur:', error);
+    }
+  };
+
+  const toggleFavorite = async (courseId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const isFavorite = favorites.some(fav => fav._id === courseId);
+      
+      const response = await fetch(`${API_URL}/favorites/${courseId}`, {
+        method: isFavorite ? 'DELETE' : 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!response.ok) throw new Error('Erreur lors de la gestion des favoris');
+
+      await loadFavorites();
+      await loadCourses();
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur lors de la gestion des favoris');
+    }
+  };
+
+  const isFavorite = (courseId) => {
+    return favorites.some(fav => fav._id === courseId);
+  };
+
+  // Fonctions pour les commentaires et évaluations
+  const loadComments = async (courseId) => {
+    try {
+      const response = await fetch(`${API_URL}/courses/${courseId}/comments`);
+
+      if (!response.ok) throw new Error('Erreur lors du chargement des commentaires');
+
+      const data = await response.json();
+      setComments(data);
+    } catch (error) {
+      console.error('Erreur:', error);
+    }
+  };
+
+  const openComments = (course) => {
+    setCurrentCourseForComments(course);
+    setShowComments(true);
+    loadComments(course._id);
+  };
+
+  const submitComment = async () => {
+    if (!newComment.trim() && newRating === 0) {
+      alert('Veuillez ajouter un commentaire ou une note');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/courses/${currentCourseForComments._id}/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          text: newComment,
+          rating: newRating > 0 ? newRating : null
+        })
+      });
+
+      if (!response.ok) throw new Error('Erreur lors de l\'ajout du commentaire');
+
+      setNewComment('');
+      setNewRating(0);
+      await loadComments(currentCourseForComments._id);
+      await loadCourses();
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur lors de l\'ajout du commentaire');
+    }
+  };
+
+  const deleteComment = async (commentId) => {
+    if (!confirm('Voulez-vous vraiment supprimer ce commentaire ?')) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/comments/${commentId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!response.ok) throw new Error('Erreur lors de la suppression du commentaire');
+
+      await loadComments(currentCourseForComments._id);
+      await loadCourses();
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur lors de la suppression du commentaire');
     }
   };
 
@@ -438,34 +563,77 @@ export default function CourseShareApp() {
 
   const getCategoryColor = (category) => {
     const colors = {
-      'Mathématiques': 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-      'Physique': 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
-      'Chimie': 'bg-green-500/20 text-green-300 border-green-500/30',
-      'Informatique': 'bg-purple-500/20 text-purple-300 border-purple-500/30',
-      'Histoire': 'bg-amber-500/20 text-amber-300 border-amber-500/30',
-      'Géographie': 'bg-teal-500/20 text-teal-300 border-teal-500/30',
-      'Philosophie': 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
-      'Langues': 'bg-pink-500/20 text-pink-300 border-pink-500/30',
-      'Économie': 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-      'Droit': 'bg-red-500/20 text-red-300 border-red-500/30',
-      'Médecine': 'bg-rose-500/20 text-rose-300 border-rose-500/30',
-      'Biologie': 'bg-lime-500/20 text-lime-300 border-lime-500/30',
-      'Littérature': 'bg-violet-500/20 text-violet-300 border-violet-500/30',
-      'Arts': 'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30',
-      'Sport': 'bg-orange-500/20 text-orange-300 border-orange-500/30',
-      'Autre': 'bg-gray-500/20 text-gray-300 border-gray-500/30'
+      'Mathématiques': 'bg-gradient-to-br from-blue-500 to-cyan-500 text-white',
+      'Physique': 'bg-gradient-to-br from-cyan-500 to-teal-500 text-white',
+      'Chimie': 'bg-gradient-to-br from-green-500 to-emerald-500 text-white',
+      'Informatique': 'bg-gradient-to-br from-purple-500 to-violet-500 text-white',
+      'Histoire': 'bg-gradient-to-br from-amber-500 to-orange-500 text-white',
+      'Géographie': 'bg-gradient-to-br from-teal-500 to-cyan-500 text-white',
+      'Philosophie': 'bg-gradient-to-br from-indigo-500 to-purple-500 text-white',
+      'Langues': 'bg-gradient-to-br from-pink-500 to-rose-500 text-white',
+      'Économie': 'bg-gradient-to-br from-yellow-500 to-amber-500 text-white',
+      'Droit': 'bg-gradient-to-br from-red-500 to-rose-500 text-white',
+      'Médecine': 'bg-gradient-to-br from-rose-500 to-pink-500 text-white',
+      'Biologie': 'bg-gradient-to-br from-lime-500 to-green-500 text-white',
+      'Littérature': 'bg-gradient-to-br from-violet-500 to-purple-500 text-white',
+      'Arts': 'bg-gradient-to-br from-fuchsia-500 to-pink-500 text-white',
+      'Sport': 'bg-gradient-to-br from-orange-500 to-red-500 text-white',
+      'Autre': 'bg-gradient-to-br from-gray-500 to-slate-500 text-white'
     };
     return colors[category] || colors['Autre'];
+  };
+
+  const getCategoryIcon = (category) => {
+    const icons = {
+      'Mathématiques': '📐',
+      'Physique': '⚛️',
+      'Chimie': '🧪',
+      'Informatique': '💻',
+      'Histoire': '📜',
+      'Géographie': '🌍',
+      'Philosophie': '🤔',
+      'Langues': '🗣️',
+      'Économie': '💰',
+      'Droit': '⚖️',
+      'Médecine': '🏥',
+      'Biologie': '🧬',
+      'Littérature': '📚',
+      'Arts': '🎨',
+      'Sport': '⚽',
+      'Autre': '📄'
+    };
+    return icons[category] || '📄';
+  };
+
+  const renderStars = (rating, interactive = false, onRate = null) => {
+    return (
+      <div className="flex gap-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <Star
+            key={star}
+            className={`w-5 h-5 ${
+              star <= rating 
+                ? 'fill-yellow-400 text-yellow-400' 
+                : 'text-gray-300'
+            } ${interactive ? 'cursor-pointer hover:scale-110 transition-transform' : ''}`}
+            onClick={() => interactive && onRate && onRate(star)}
+          />
+        ))}
+      </div>
+    );
   };
 
   // Vue publique pour les liens partagés
   if (isPublicView) {
     if (publicLoading) {
       return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+        <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center p-4">
           <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400 mb-4"></div>
-            <p className="text-purple-200 text-lg">Chargement du cours...</p>
+            <div className="relative">
+              <div className="w-20 h-20 border-4 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-6"></div>
+              <Sparkles className="w-10 h-10 text-yellow-300 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 animate-pulse" />
+            </div>
+            <p className="text-white text-xl font-semibold animate-pulse">Chargement du cours...</p>
           </div>
         </div>
       );
@@ -473,19 +641,22 @@ export default function CourseShareApp() {
 
     if (publicError || !publicCourse) {
       return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-          <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl p-8 max-w-md w-full text-center border border-white/20">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-red-500/20 rounded-full mb-4">
-              <X className="w-8 h-8 text-red-400" />
+        <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full text-center transform hover:scale-105 transition-transform">
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-red-500 to-pink-500 rounded-full mb-6 shadow-lg">
+              <X className="w-10 h-10 text-white" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">Cours introuvable</h2>
-            <p className="text-purple-200 mb-6">
+            <h2 className="text-3xl font-black text-gray-800 mb-3 bg-gradient-to-r from-red-600 to-pink-600 bg-clip-text text-transparent">
+              Oups ! 😕
+            </h2>
+            <p className="text-gray-600 mb-8 text-lg">
               {publicError || 'Le lien de partage est invalide ou a été révoqué.'}
             </p>
             <button
               onClick={() => window.location.href = '/'}
-              className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-3 rounded-xl font-semibold hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg"
+              className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-8 py-4 rounded-2xl font-bold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1 flex items-center gap-2 mx-auto"
             >
+              <ArrowLeft className="w-5 h-5" />
               Retour à l'accueil
             </button>
           </div>
@@ -494,80 +665,88 @@ export default function CourseShareApp() {
     }
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -inset-[10px] opacity-30">
-            <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl animate-blob"></div>
-            <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-2000"></div>
-            <div className="absolute bottom-1/4 left-1/3 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-4000"></div>
-          </div>
-        </div>
-
-        <div className="relative max-w-6xl mx-auto px-4 py-8">
+      <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500">
+        <div className="max-w-6xl mx-auto px-4 py-8">
           {/* Header Public */}
-          <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl p-6 mb-8 border border-white/20">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="bg-gradient-to-br from-purple-500 to-pink-500 p-3 rounded-2xl shadow-lg">
-                  <FileText className="w-8 h-8 text-white" />
+          <div className="bg-white rounded-3xl shadow-2xl p-6 mb-8 transform hover:scale-[1.02] transition-transform">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-4">
+                <div className="bg-gradient-to-br from-indigo-600 to-purple-600 p-4 rounded-2xl shadow-lg">
+                  <BookOpen className="w-10 h-10 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-3xl font-bold text-white">
-                    Papyrus
+                  <h1 className="text-4xl font-black bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                    Papyrus 📚
                   </h1>
-                  <p className="text-purple-200">Cours partagé publiquement</p>
+                  <p className="text-purple-600 font-semibold">Cours partagé avec amour ❤️</p>
                 </div>
               </div>
               <button
                 onClick={() => window.location.href = '/'}
-                className="flex items-center gap-2 bg-white/10 backdrop-blur text-white px-4 py-2 rounded-xl hover:bg-white/20 transition-all border border-white/20"
+                className="flex items-center gap-2 bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 px-6 py-3 rounded-2xl hover:from-gray-200 hover:to-gray-300 transition-all font-semibold shadow-lg hover:shadow-xl"
               >
-                <ArrowLeft className="w-4 h-4" />
+                <ArrowLeft className="w-5 h-5" />
                 Accueil
               </button>
             </div>
           </div>
 
           {/* Course Details */}
-          <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl p-8 mb-6 border border-white/20">
-            <div className="flex items-start justify-between mb-6">
+          <div className="bg-white rounded-3xl shadow-2xl p-8 mb-6 transform hover:scale-[1.01] transition-transform">
+            <div className="flex items-start justify-between mb-6 flex-wrap gap-4">
               <div className="flex-1">
-                <h2 className="text-3xl font-bold text-white mb-3">{publicCourse.title}</h2>
-                <p className="text-purple-200 mb-4">
-                  Partagé par <span className="font-semibold text-pink-400">{publicCourse.owner.username}</span>
-                </p>
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="text-5xl">{getCategoryIcon(publicCourse.category)}</span>
+                  <h2 className="text-4xl font-black text-gray-800">{publicCourse.title}</h2>
+                </div>
+                <div className="flex items-center gap-2 mb-4 flex-wrap">
+                  <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2 rounded-full font-bold flex items-center gap-2 shadow-md">
+                    <User className="w-4 h-4" />
+                    {publicCourse.owner.username}
+                  </div>
+                  <div className={`${getCategoryColor(publicCourse.category)} px-4 py-2 rounded-full font-bold shadow-md`}>
+                    {publicCourse.category || 'Autre'}
+                  </div>
+                  {publicCourse.averageRating > 0 && (
+                    <div className="bg-gradient-to-r from-yellow-400 to-orange-400 text-white px-4 py-2 rounded-full font-bold flex items-center gap-2 shadow-md">
+                      <Star className="w-4 h-4 fill-white" />
+                      {publicCourse.averageRating.toFixed(1)} ({publicCourse.ratingsCount})
+                    </div>
+                  )}
+                </div>
                 {publicCourse.description && (
-                  <p className="text-purple-200 mb-4">{publicCourse.description}</p>
+                  <p className="text-gray-700 mb-4 text-lg">{publicCourse.description}</p>
                 )}
-                <div className="flex items-center gap-6 text-sm text-purple-300">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4" />
-                    <span>{formatFileSize(publicCourse.fileSize)}</span>
+                <div className="flex items-center gap-6 text-sm text-gray-600 flex-wrap">
+                  <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-full">
+                    <FileText className="w-5 h-5 text-blue-600" />
+                    <span className="font-semibold">{formatFileSize(publicCourse.fileSize)}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Eye className="w-4 h-4" />
-                    <span>{publicCourse.views} vues</span>
+                  <div className="flex items-center gap-2 bg-green-50 px-4 py-2 rounded-full">
+                    <Eye className="w-5 h-5 text-green-600" />
+                    <span className="font-semibold">{publicCourse.views} vues</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Download className="w-4 h-4" />
-                    <span>{publicCourse.downloads} téléchargements</span>
+                  <div className="flex items-center gap-2 bg-purple-50 px-4 py-2 rounded-full">
+                    <Download className="w-5 h-5 text-purple-600" />
+                    <span className="font-semibold">{publicCourse.downloads} téléchargements</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span>{formatDate(publicCourse.createdAt)}</span>
+                  <div className="flex items-center gap-2 bg-orange-50 px-4 py-2 rounded-full">
+                    <Clock className="w-5 h-5 text-orange-600" />
+                    <span className="font-semibold">{formatDate(publicCourse.createdAt)}</span>
                   </div>
                 </div>
               </div>
               <button
                 onClick={() => downloadPublicPDF(publicCourse.shareToken, publicCourse.fileName)}
-                className="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-3 rounded-xl hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg"
+                className="flex items-center gap-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-8 py-4 rounded-2xl hover:from-green-600 hover:to-emerald-600 transition-all shadow-lg hover:shadow-xl font-bold text-lg transform hover:-translate-y-1"
               >
-                <Download className="w-5 h-5" />
+                <Download className="w-6 h-6" />
                 Télécharger
               </button>
             </div>
 
             {/* PDF Viewer */}
-            <div className="border-2 border-white/20 rounded-2xl overflow-hidden bg-white">
+            <div className="border-4 border-gray-200 rounded-3xl overflow-hidden bg-gray-100 shadow-inner">
               <iframe
                 src={`${BASE_URL}/${publicCourse.filePath}`}
                 className="w-full h-[800px] border-0"
@@ -577,79 +756,58 @@ export default function CourseShareApp() {
           </div>
 
           {/* Call to Action */}
-          <div className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-3xl shadow-2xl p-8 text-center text-white">
-            <h3 className="text-2xl font-bold mb-3">Vous aimez ce contenu ?</h3>
-            <p className="text-purple-100 mb-6">
-              Créez votre compte gratuit pour partager vos propres cours avec la communauté !
+          <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 rounded-3xl shadow-2xl p-10 text-center text-white transform hover:scale-[1.02] transition-transform">
+            <div className="flex justify-center mb-4">
+              <Sparkles className="w-16 h-16 text-yellow-300 animate-bounce" />
+            </div>
+            <h3 className="text-4xl font-black mb-4">Tu kiffes ce contenu ? 🔥</h3>
+            <p className="text-xl mb-8 text-purple-100">
+              Rejoins la communauté Papyrus et partage tes propres cours ! C'est gratuit et ça prend 30 secondes ⚡
             </p>
             <button
               onClick={() => window.location.href = '/'}
-              className="bg-white text-purple-600 px-8 py-3 rounded-xl font-semibold hover:bg-gray-100 transition-all shadow-lg"
+              className="bg-white text-purple-600 px-10 py-5 rounded-2xl font-black text-lg hover:bg-gray-100 transition-all shadow-2xl hover:shadow-3xl transform hover:-translate-y-2 inline-flex items-center gap-3"
             >
+              <Zap className="w-6 h-6" />
               Rejoindre Papyrus
+              <Zap className="w-6 h-6" />
             </button>
           </div>
         </div>
-
-        <style>{`
-          @keyframes blob {
-            0% { transform: translate(0px, 0px) scale(1); }
-            33% { transform: translate(30px, -50px) scale(1.1); }
-            66% { transform: translate(-20px, 20px) scale(0.9); }
-            100% { transform: translate(0px, 0px) scale(1); }
-          }
-          .animate-blob {
-            animation: blob 7s infinite;
-          }
-          .animation-delay-2000 {
-            animation-delay: 2s;
-          }
-          .animation-delay-4000 {
-            animation-delay: 4s;
-          }
-        `}</style>
       </div>
     );
   }
 
   if (showAuthModal) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -inset-[10px] opacity-50">
-            <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl animate-blob"></div>
-            <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-2000"></div>
-            <div className="absolute bottom-1/4 left-1/3 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-4000"></div>
-          </div>
-        </div>
-
-        <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl p-8 w-full max-w-md border border-white/20">
+      <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl shadow-2xl p-10 w-full max-w-md transform hover:scale-[1.02] transition-transform">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl mb-4 shadow-lg">
-              <FileText className="w-8 h-8 text-white" />
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-3xl mb-6 shadow-xl transform hover:rotate-6 transition-transform">
+              <BookOpen className="w-10 h-10 text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-white mb-2">
-              Papyrus
+            <h1 className="text-5xl font-black mb-3 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+              Papyrus 📚
             </h1>
-            <p className="text-purple-200">
-              {authMode === 'login' ? 'Connectez-vous à votre compte' : 'Créez votre compte'}
+            <p className="text-gray-600 text-lg font-semibold">
+              {authMode === 'login' ? 'Bon retour parmi nous ! 👋' : 'Rejoins la communauté ! 🚀'}
             </p>
           </div>
 
-          <form onSubmit={handleAuthSubmit} className="space-y-4">
+          <form onSubmit={handleAuthSubmit} className="space-y-5">
             {authMode === 'register' && (
               <div>
-                <label className="block text-sm font-medium text-purple-200 mb-2">
-                  Nom d'utilisateur
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  Nom d'utilisateur ✨
                 </label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-300 w-5 h-5" />
+                  <User className="absolute left-4 top-1/2 transform -translate-y-1/2 text-purple-500 w-5 h-5" />
                   <input
                     type="text"
                     value={authForm.username}
                     onChange={(e) => setAuthForm({ ...authForm, username: e.target.value })}
-                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="votre_nom"
+                    className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-purple-300 focus:border-purple-500 font-semibold transition-all"
+                    placeholder="ton_super_pseudo"
                     required
                   />
                 </div>
@@ -657,16 +815,16 @@ export default function CourseShareApp() {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-purple-200 mb-2">
-                Email
+              <label className="block text-sm font-bold text-gray-700 mb-2">
+                Email 📧
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-300 w-5 h-5" />
+                <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 text-purple-500 w-5 h-5" />
                 <input
                   type="email"
                   value={authForm.email}
                   onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
-                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-purple-300 focus:border-purple-500 font-semibold transition-all"
                   placeholder="email@exemple.com"
                   required
                 />
@@ -674,16 +832,16 @@ export default function CourseShareApp() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-purple-200 mb-2">
-                Mot de passe
+              <label className="block text-sm font-bold text-gray-700 mb-2">
+                Mot de passe 🔒
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-300 w-5 h-5" />
+                <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-purple-500 w-5 h-5" />
                 <input
                   type="password"
                   value={authForm.password}
                   onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
-                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-purple-300 focus:border-purple-500 font-semibold transition-all"
                   placeholder="••••••••"
                   required
                 />
@@ -692,16 +850,16 @@ export default function CourseShareApp() {
 
             {authMode === 'register' && (
               <div>
-                <label className="block text-sm font-medium text-purple-200 mb-2">
-                  Confirmer le mot de passe
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  Confirme ton mot de passe 🔐
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-300 w-5 h-5" />
+                  <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-purple-500 w-5 h-5" />
                   <input
                     type="password"
                     value={authForm.confirmPassword}
                     onChange={(e) => setAuthForm({ ...authForm, confirmPassword: e.target.value })}
-                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-purple-300 focus:border-purple-500 font-semibold transition-all"
                     placeholder="••••••••"
                     required
                   />
@@ -712,84 +870,79 @@ export default function CourseShareApp() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-3 rounded-xl font-semibold hover:from-purple-600 hover:to-pink-600 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-5 rounded-2xl font-black text-lg hover:from-indigo-700 hover:to-purple-700 transition-all transform hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
             >
-              {loading ? 'Chargement...' : authMode === 'login' ? 'Se connecter' : 'S\'inscrire'}
+              {loading ? (
+                <>
+                  <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  Chargement...
+                </>
+              ) : (
+                <>
+                  <Zap className="w-5 h-5" />
+                  {authMode === 'login' ? 'Se connecter' : 'S\'inscrire'}
+                  <Zap className="w-5 h-5" />
+                </>
+              )}
             </button>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-8 text-center">
             <button
               onClick={() => {
                 setAuthMode(authMode === 'login' ? 'register' : 'login');
                 setAuthForm({ username: '', email: '', password: '', confirmPassword: '' });
               }}
-              className="text-purple-200 hover:text-white transition-colors"
+              className="text-purple-600 hover:text-purple-800 transition-colors font-bold text-lg hover:underline"
             >
               {authMode === 'login' 
-                ? "Pas encore de compte ? S'inscrire" 
-                : 'Déjà un compte ? Se connecter'}
+                ? "Pas encore de compte ? Inscris-toi ! 🎉" 
+                : 'Déjà un compte ? Connecte-toi ! 👍'}
             </button>
           </div>
         </div>
-
-        <style>{`
-          @keyframes blob {
-            0% { transform: translate(0px, 0px) scale(1); }
-            33% { transform: translate(30px, -50px) scale(1.1); }
-            66% { transform: translate(-20px, 20px) scale(0.9); }
-            100% { transform: translate(0px, 0px) scale(1); }
-          }
-          .animate-blob {
-            animation: blob 7s infinite;
-          }
-          .animation-delay-2000 {
-            animation-delay: 2s;
-          }
-          .animation-delay-4000 {
-            animation-delay: 4s;
-          }
-        `}</style>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      {/* Background animé */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -inset-[10px] opacity-30">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl animate-blob"></div>
-          <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-2000"></div>
-          <div className="absolute bottom-1/4 left-1/3 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-4000"></div>
-        </div>
-      </div>
-
-      <div className="relative max-w-7xl mx-auto px-4 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500">
+      <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Header */}
-        <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl p-6 mb-8 border border-white/20">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-br from-purple-500 to-pink-500 p-3 rounded-2xl shadow-lg">
-                <FileText className="w-8 h-8 text-white" />
+        <div className="bg-white rounded-3xl shadow-2xl p-6 mb-6 transform hover:scale-[1.01] transition-transform">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-4">
+              <div className="bg-gradient-to-br from-indigo-600 to-purple-600 p-4 rounded-2xl shadow-lg transform hover:rotate-12 transition-transform">
+                <BookOpen className="w-10 h-10 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-white">
-                  Papyrus
+                <h1 className="text-4xl font-black bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                  Papyrus 📚
                 </h1>
-                <p className="text-purple-200">Partagez vos connaissances</p>
+                <p className="text-purple-600 font-bold">Ta bibliothèque de connaissances</p>
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-sm text-purple-300">Connecté en tant que</p>
-                <p className="font-semibold text-white">{user?.username}</p>
+              <button
+                onClick={() => setShowFavorites(!showFavorites)}
+                className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all ${
+                  showFavorites
+                    ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white'
+                    : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800'
+                }`}
+              >
+                <Heart className={`w-5 h-5 ${showFavorites ? 'fill-white' : ''}`} />
+                Favoris ({favorites.length})
+              </button>
+              <div className="text-right bg-gradient-to-r from-purple-100 to-pink-100 px-6 py-3 rounded-2xl">
+                <p className="text-sm text-purple-600 font-semibold">Connecté en tant que</p>
+                <p className="font-black text-purple-800 text-lg">{user?.username} 👤</p>
               </div>
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-2 bg-red-500/20 backdrop-blur text-white px-4 py-2 rounded-xl hover:bg-red-500/30 transition-all border border-red-500/30"
+                className="flex items-center gap-2 bg-gradient-to-r from-red-500 to-pink-500 text-white px-6 py-3 rounded-2xl hover:from-red-600 hover:to-pink-600 transition-all font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut className="w-5 h-5" />
                 Déconnexion
               </button>
             </div>
@@ -797,60 +950,62 @@ export default function CourseShareApp() {
         </div>
 
         {/* Tabs Navigation */}
-        <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl p-2 mb-6 border border-white/20">
-          <div className="flex gap-2">
+        <div className="bg-white rounded-3xl shadow-xl p-3 mb-6">
+          <div className="grid grid-cols-3 gap-3">
             <button
-              onClick={() => setActiveTab('my-courses')}
-              className={`flex-1 py-3 px-6 rounded-2xl font-semibold transition-all ${
+              onClick={() => { setActiveTab('my-courses'); setShowFavorites(false); }}
+              className={`py-4 px-6 rounded-2xl font-black transition-all transform hover:-translate-y-1 ${
                 activeTab === 'my-courses'
-                  ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
-                  : 'text-purple-200 hover:text-white hover:bg-white/5'
+                  ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg scale-105'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              <div className="flex items-center justify-center gap-2">
-                <FileText className="w-5 h-5" />
+              <div className="flex items-center justify-center gap-2 text-lg">
+                <FileText className="w-6 h-6" />
                 Mes Cours
               </div>
             </button>
             <button
-              onClick={() => setActiveTab('discover')}
-              className={`flex-1 py-3 px-6 rounded-2xl font-semibold transition-all ${
+              onClick={() => { setActiveTab('discover'); setShowFavorites(false); }}
+              className={`py-4 px-6 rounded-2xl font-black transition-all transform hover:-translate-y-1 ${
                 activeTab === 'discover'
-                  ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
-                  : 'text-purple-200 hover:text-white hover:bg-white/5'
+                  ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg scale-105'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              <div className="flex items-center justify-center gap-2">
-                <Search className="w-5 h-5" />
+              <div className="flex items-center justify-center gap-2 text-lg">
+                <Search className="w-6 h-6" />
                 Découvrir
               </div>
             </button>
             <button
-              onClick={() => setActiveTab('shared')}
-              className={`flex-1 py-3 px-6 rounded-2xl font-semibold transition-all ${
+              onClick={() => { setActiveTab('shared'); setShowFavorites(false); }}
+              className={`py-4 px-6 rounded-2xl font-black transition-all transform hover:-translate-y-1 ${
                 activeTab === 'shared'
-                  ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
-                  : 'text-purple-200 hover:text-white hover:bg-white/5'
+                  ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg scale-105'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              <div className="flex items-center justify-center gap-2">
-                <Share2 className="w-5 h-5" />
-                Partagés avec moi
+              <div className="flex items-center justify-center gap-2 text-lg">
+                <Share2 className="w-6 h-6" />
+                Partagés
               </div>
             </button>
           </div>
         </div>
 
-        {/* Upload Section - Only visible on "Mes Cours" */}
-        {activeTab === 'my-courses' && (
-          <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl p-6 mb-6 border border-white/20">
-            <label className="flex flex-col items-center justify-center border-2 border-dashed border-purple-400/50 rounded-2xl p-8 cursor-pointer hover:border-purple-400 hover:bg-white/5 transition-all group">
-              <Upload className="w-12 h-12 text-purple-400 mb-3 group-hover:scale-110 transition-transform" />
-              <span className="text-lg font-semibold text-white mb-1">
-                Cliquez pour ajouter un PDF
+        {/* Upload Section */}
+        {activeTab === 'my-courses' && !showFavorites && (
+          <div className="bg-white rounded-3xl shadow-xl p-8 mb-6 transform hover:scale-[1.01] transition-transform">
+            <label className="flex flex-col items-center justify-center border-4 border-dashed border-purple-300 rounded-3xl p-12 cursor-pointer hover:border-purple-500 hover:bg-purple-50 transition-all group">
+              <div className="bg-gradient-to-br from-purple-500 to-pink-500 p-6 rounded-3xl mb-4 group-hover:scale-110 transition-transform shadow-lg">
+                <Upload className="w-12 h-12 text-white" />
+              </div>
+              <span className="text-2xl font-black text-gray-800 mb-2">
+                Ajoute ton PDF ici ! 📄
               </span>
-              <span className="text-sm text-purple-300">
-                Taille maximale: 10 Mo
+              <span className="text-lg text-gray-500 font-semibold">
+                Taille max: 10 Mo · Formats: PDF uniquement
               </span>
               <input
                 type="file"
@@ -863,163 +1018,209 @@ export default function CourseShareApp() {
         )}
 
         {/* Search and Sort Bar */}
-        <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl p-4 mb-6 border border-white/20">
-          <div className="flex gap-4 flex-wrap">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-300 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="Rechercher un cours..."
-                value={searchTerm}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-              />
-            </div>
-            
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-purple-500 outline-none cursor-pointer"
-            >
-              {categories.map(cat => (
-                <option key={cat} value={cat} className="bg-slate-800">{cat}</option>
-              ))}
-            </select>
-
-            {activeTab === 'discover' && (
+        {!showFavorites && (
+          <div className="bg-white rounded-3xl shadow-xl p-5 mb-6">
+            <div className="flex gap-4 flex-wrap">
+              <div className="relative flex-1 min-w-[250px]">
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-purple-500 w-6 h-6" />
+                <input
+                  type="text"
+                  placeholder="Cherche un cours... 🔍"
+                  value={searchTerm}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  className="w-full pl-14 pr-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-800 placeholder-gray-400 focus:ring-4 focus:ring-purple-300 focus:border-purple-500 outline-none font-semibold text-lg transition-all"
+                />
+              </div>
+              
               <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-purple-500 outline-none cursor-pointer"
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="px-6 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-800 focus:ring-4 focus:ring-purple-300 outline-none cursor-pointer font-bold text-lg transition-all"
               >
-                <option value="recent" className="bg-slate-800">Plus récents</option>
-                <option value="popular" className="bg-slate-800">Plus populaires</option>
-                <option value="downloads" className="bg-slate-800">Plus téléchargés</option>
+                {categories.map(cat => (
+                  <option key={cat} value={cat}>{getCategoryIcon(cat)} {cat}</option>
+                ))}
               </select>
-            )}
+
+              {activeTab === 'discover' && (
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="px-6 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-800 focus:ring-4 focus:ring-purple-300 outline-none cursor-pointer font-bold text-lg transition-all"
+                >
+                  <option value="recent">🆕 Plus récents</option>
+                  <option value="popular">🔥 Plus populaires</option>
+                  <option value="downloads">⬇️ Plus téléchargés</option>
+                  <option value="rating">⭐ Mieux notés</option>
+                </select>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Course Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredCourses.length === 0 ? (
-            <div className="col-span-full text-center py-16 bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20">
-              <FileText className="w-20 h-20 text-purple-400 mx-auto mb-4" />
-              <p className="text-purple-200 text-lg">
-                {searchTerm 
-                  ? 'Aucun cours trouvé' 
+          {(showFavorites ? favorites : filteredCourses).length === 0 ? (
+            <div className="col-span-full text-center py-20 bg-white rounded-3xl shadow-xl">
+              <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full mb-6 shadow-lg">
+                {showFavorites ? <Heart className="w-12 h-12 text-white" /> : <FileText className="w-12 h-12 text-white" />}
+              </div>
+              <p className="text-gray-600 text-2xl font-bold">
+                {showFavorites
+                  ? 'Aucun cours favori pour le moment ! ❤️'
+                  : searchTerm 
+                  ? 'Aucun cours trouvé 😕' 
                   : activeTab === 'my-courses'
-                  ? 'Aucun cours disponible. Commencez par en ajouter un !'
+                  ? 'Aucun cours pour le moment ! Ajoute ton premier cours 🚀'
                   : activeTab === 'discover'
-                  ? 'Aucun cours public disponible pour le moment.'
-                  : 'Aucun cours partagé avec vous.'}
+                  ? 'Aucun cours public disponible 📚'
+                  : 'Aucun cours partagé avec toi 💌'}
               </p>
             </div>
           ) : (
-            filteredCourses.map((course) => (
+            (showFavorites ? favorites : filteredCourses).map((course) => (
               <div
                 key={course._id}
-                className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-xl hover:shadow-2xl transition-all p-6 border border-white/20 group hover:-translate-y-1"
+                className="bg-white rounded-3xl shadow-xl hover:shadow-2xl transition-all p-6 group hover:-translate-y-2 transform"
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
-                    <h3 className="text-xl font-bold text-white mb-2 group-hover:text-purple-300 transition-colors line-clamp-2">
-                      {course.title}
-                    </h3>
-                    <p className="text-sm text-purple-300 mb-2">
-                      Par {course.owner.username}
-                    </p>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={`px-2 py-1 rounded-lg text-xs font-semibold border ${getCategoryColor(course.category || 'Autre')}`}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-3xl">{getCategoryIcon(course.category)}</span>
+                      <h3 className="text-xl font-black text-gray-800 group-hover:text-purple-600 transition-colors line-clamp-2">
+                        {course.title}
+                      </h3>
+                    </div>
+                    <div className="flex items-center gap-2 mb-3 flex-wrap">
+                      <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-md">
+                        <User className="w-3 h-3" />
+                        {course.owner.username}
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFavorite(course._id);
+                        }}
+                        className={`p-2 rounded-full transition-all ${
+                          isFavorite(course._id)
+                            ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-md'
+                            : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                        }`}
+                      >
+                        <Heart className={`w-4 h-4 ${isFavorite(course._id) ? 'fill-white' : ''}`} />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className={`${getCategoryColor(course.category)} px-3 py-1 rounded-full text-xs font-bold shadow-md`}>
                         {course.category || 'Autre'}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-purple-400">
-                      <span>{formatFileSize(course.fileSize)}</span>
+                    {course.averageRating > 0 && (
+                      <div className="flex items-center gap-2 mb-3">
+                        {renderStars(Math.round(course.averageRating))}
+                        <span className="text-sm font-bold text-gray-700">
+                          {course.averageRating.toFixed(1)} ({course.ratingsCount})
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-3 text-xs text-gray-600 font-semibold">
+                      <span className="bg-blue-50 px-2 py-1 rounded-lg">{formatFileSize(course.fileSize)}</span>
                       <span>•</span>
-                      <span>{formatDate(course.createdAt)}</span>
+                      <span className="bg-orange-50 px-2 py-1 rounded-lg">{formatDate(course.createdAt)}</span>
                     </div>
                   </div>
-                  <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                  <div className={`px-3 py-2 rounded-full text-xs font-black shadow-md ${
                     course.shared 
-                      ? 'bg-green-500/20 text-green-300 border border-green-500/30' 
-                      : 'bg-gray-500/20 text-gray-300 border border-gray-500/30'
+                      ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' 
+                      : 'bg-gradient-to-r from-gray-400 to-gray-500 text-white'
                   }`}>
-                    {course.shared ? 'Public' : 'Privé'}
+                    {course.shared ? '🌍 Public' : '🔒 Privé'}
                   </div>
                 </div>
 
                 {course.shareToken && isOwner(course) && (
-                  <div className="mb-3 p-2 bg-blue-500/20 border border-blue-500/30 rounded-xl flex items-center gap-2">
-                    <LinkIcon className="w-4 h-4 text-blue-300" />
-                    <span className="text-xs text-blue-300 font-medium">Lien de partage actif</span>
+                  <div className="mb-3 p-3 bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-2xl flex items-center gap-2">
+                    <LinkIcon className="w-5 h-5 text-blue-600" />
+                    <span className="text-sm text-blue-700 font-bold">🔗 Lien actif</span>
                   </div>
                 )}
 
-                <div className="flex items-center gap-2 text-sm text-purple-300 mb-4">
-                  <Eye className="w-4 h-4" />
-                  <span>{course.views}</span>
-                  <Download className="w-4 h-4 ml-2" />
-                  <span>{course.downloads}</span>
+                <div className="flex items-center gap-3 text-sm text-gray-600 mb-4 font-semibold">
+                  <div className="flex items-center gap-1 bg-green-50 px-3 py-1 rounded-full">
+                    <Eye className="w-4 h-4 text-green-600" />
+                    <span>{course.views}</span>
+                  </div>
+                  <div className="flex items-center gap-1 bg-purple-50 px-3 py-1 rounded-full">
+                    <Download className="w-4 h-4 text-purple-600" />
+                    <span>{course.downloads}</span>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openComments(course);
+                    }}
+                    className="flex items-center gap-1 bg-blue-50 px-3 py-1 rounded-full hover:bg-blue-100 transition-colors"
+                  >
+                    <MessageSquare className="w-4 h-4 text-blue-600" />
+                    <span>Commentaires</span>
+                  </button>
                 </div>
 
-                <div className="space-y-2">
-                  {/* Première ligne - Actions principales */}
+                <div className="space-y-3">
+                  {/* Actions principales */}
                   <div className="flex gap-2">
                     <button
                       onClick={() => setSelectedCourse(course)}
-                      className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2 rounded-xl hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg"
+                      className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-2xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl font-bold transform hover:-translate-y-1"
                     >
-                      <Eye className="w-4 h-4" />
+                      <Eye className="w-5 h-5" />
                       Voir
                     </button>
                     <button
                       onClick={() => downloadPDF(course._id, course.fileName)}
-                      className="flex items-center justify-center gap-2 bg-blue-500/20 backdrop-blur text-blue-300 px-4 py-2 rounded-xl hover:bg-blue-500/30 transition-all border border-blue-500/30"
+                      className="flex items-center justify-center gap-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-4 py-3 rounded-2xl hover:from-green-600 hover:to-emerald-600 transition-all font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1"
                     >
-                      <Download className="w-4 h-4" />
+                      <Download className="w-5 h-5" />
                     </button>
                     {isOwner(course) && (
                       <button
                         onClick={() => deleteCourse(course._id)}
-                        className="flex items-center justify-center gap-2 bg-red-500/20 backdrop-blur text-red-300 px-4 py-2 rounded-xl hover:bg-red-500/30 transition-all border border-red-500/30"
+                        className="flex items-center justify-center gap-2 bg-gradient-to-r from-red-500 to-pink-500 text-white px-4 py-3 rounded-2xl hover:from-red-600 hover:to-pink-600 transition-all font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-5 h-5" />
                       </button>
                     )}
                   </div>
 
-                  {/* Deuxième ligne - Partage (uniquement pour le propriétaire) */}
+                  {/* Partage */}
                   {isOwner(course) && (
                     <div className="flex gap-2">
                       <button
                         onClick={() => toggleShare(course)}
-                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl transition-all font-semibold ${
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-2xl transition-all font-black shadow-md hover:shadow-lg transform hover:-translate-y-1 ${
                           course.shared
-                            ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30 hover:bg-orange-500/30'
-                            : 'bg-green-500/20 text-green-300 border border-green-500/30 hover:bg-green-500/30'
+                            ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
+                            : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white'
                         }`}
-                        title={course.shared ? 'Rendre privé' : 'Rendre public'}
                       >
                         {course.shared ? (
                           <>
-                            <X className="w-4 h-4" />
-                            <span className="text-sm">Rendre Privé</span>
+                            <X className="w-5 h-5" />
+                            <span>Rendre Privé</span>
                           </>
                         ) : (
                           <>
-                            <Share2 className="w-4 h-4" />
-                            <span className="text-sm">Rendre Public</span>
+                            <Share2 className="w-5 h-5" />
+                            <span>Rendre Public</span>
                           </>
                         )}
                       </button>
                       <button
                         onClick={() => generateShareLink(course)}
-                        className="flex items-center justify-center gap-2 bg-purple-500/20 backdrop-blur text-purple-300 px-4 py-2 rounded-xl hover:bg-purple-500/30 transition-all border border-purple-500/30"
-                        title="Générer un lien de partage"
+                        className="flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-3 rounded-2xl hover:from-purple-600 hover:to-pink-600 transition-all font-bold shadow-md hover:shadow-lg transform hover:-translate-y-1"
                       >
-                        <LinkIcon className="w-4 h-4" />
-                        <span className="text-sm">Lien</span>
+                        <LinkIcon className="w-5 h-5" />
+                        <span>Lien</span>
                       </button>
                     </div>
                   )}
@@ -1031,73 +1232,74 @@ export default function CourseShareApp() {
 
         {/* Upload Modal */}
         {showUploadModal && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-            <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl max-w-md w-full p-6 border border-white/20">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold text-white">Ajouter un cours</h2>
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+            <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 transform scale-100 animate-bounce-in">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-3xl font-black text-gray-800">Ajoute ton cours 📚</h2>
                 <button
                   onClick={() => {
                     setShowUploadModal(false);
                     setUploadForm({ title: '', category: 'Autre', file: null });
                   }}
-                  className="text-purple-300 hover:text-white bg-white/10 hover:bg-white/20 rounded-xl p-2 transition-all"
+                  className="text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-2xl p-2 transition-all"
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-7 h-7" />
                 </button>
               </div>
               
-              <div className="space-y-4">
+              <div className="space-y-5">
                 <div>
-                  <label className="block text-sm font-medium text-purple-200 mb-2">
-                    Titre du cours
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    Titre du cours ✨
                   </label>
                   <input
                     type="text"
                     value={uploadForm.title}
                     onChange={(e) => setUploadForm({ ...uploadForm, title: e.target.value })}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300 focus:ring-2 focus:ring-purple-500 outline-none"
+                    className="w-full px-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-800 placeholder-gray-400 focus:ring-4 focus:ring-purple-300 outline-none font-semibold transition-all"
                     placeholder="Ex: Cours de mathématiques"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-purple-200 mb-2">
-                    Catégorie
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    Catégorie 🏷️
                   </label>
                   <select
                     value={uploadForm.category}
                     onChange={(e) => setUploadForm({ ...uploadForm, category: e.target.value })}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-purple-500 outline-none cursor-pointer"
+                    className="w-full px-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-800 focus:ring-4 focus:ring-purple-300 outline-none cursor-pointer font-bold transition-all"
                   >
                     {categories.filter(cat => cat !== 'Toutes').map(cat => (
-                      <option key={cat} value={cat} className="bg-slate-800">{cat}</option>
+                      <option key={cat} value={cat}>{getCategoryIcon(cat)} {cat}</option>
                     ))}
                   </select>
                 </div>
 
-                <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-3">
-                  <p className="text-sm text-purple-200">
-                    <strong>Fichier :</strong> {uploadForm.file?.name}
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-2xl p-4">
+                  <p className="text-sm text-gray-700 font-bold">
+                    📄 <strong>Fichier :</strong> {uploadForm.file?.name}
                   </p>
-                  <p className="text-xs text-purple-300 mt-1">
-                    {uploadForm.file && formatFileSize(uploadForm.file.size)}
+                  <p className="text-xs text-gray-600 mt-2 font-semibold">
+                    💾 {uploadForm.file && formatFileSize(uploadForm.file.size)}
                   </p>
                 </div>
 
                 <button
                   onClick={handleFileUpload}
                   disabled={uploadProgress || !uploadForm.title}
-                  className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-3 rounded-xl font-semibold hover:from-purple-600 hover:to-pink-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg flex items-center justify-center gap-2"
+                  className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-5 rounded-2xl font-black text-lg hover:from-indigo-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl flex items-center justify-center gap-3 transform hover:-translate-y-1"
                 >
                   {uploadProgress ? (
                     <>
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      <div className="animate-spin rounded-full h-6 w-6 border-3 border-white/30 border-t-white"></div>
                       Téléchargement...
                     </>
                   ) : (
                     <>
-                      <Upload className="w-5 h-5" />
+                      <Upload className="w-6 h-6" />
                       Ajouter le cours
+                      <Zap className="w-6 h-6" />
                     </>
                   )}
                 </button>
@@ -1108,10 +1310,10 @@ export default function CourseShareApp() {
 
         {/* Share Link Modal */}
         {showShareModal && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-            <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl max-w-md w-full p-6 border border-white/20">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold text-white">Lien de partage</h2>
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+            <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-3xl font-black text-gray-800">Lien de partage 🔗</h2>
                 <button
                   onClick={() => {
                     setShowShareModal(false);
@@ -1119,34 +1321,34 @@ export default function CourseShareApp() {
                     setCopiedLink(false);
                     setCurrentShareCourse(null);
                   }}
-                  className="text-purple-300 hover:text-white bg-white/10 hover:bg-white/20 rounded-xl p-2 transition-all"
+                  className="text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-2xl p-2 transition-all"
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-7 h-7" />
                 </button>
               </div>
               
-              <div className="mb-4">
-                <p className="text-purple-200 mb-2">
-                  Partagez ce lien avec d'autres personnes pour leur donner accès au cours :
+              <div className="mb-6">
+                <p className="text-gray-600 mb-3 font-semibold text-lg">
+                  Partage ce lien avec tes potes ! 🎉
                 </p>
-                <p className="text-sm text-purple-300 mb-4">
-                  <strong>{currentShareCourse?.title}</strong>
+                <p className="text-sm text-gray-500 mb-4 font-semibold">
+                  📚 <strong>{currentShareCourse?.title}</strong>
                 </p>
               </div>
               
-              <div className="bg-white/10 border border-white/20 rounded-xl p-3 mb-4">
-                <p className="text-sm text-purple-200 break-all font-mono">{shareLink}</p>
+              <div className="bg-gradient-to-r from-gray-50 to-gray-100 border-2 border-gray-200 rounded-2xl p-4 mb-6">
+                <p className="text-sm text-gray-700 break-all font-mono font-semibold">{shareLink}</p>
               </div>
               
-              <div className="flex gap-2">
+              <div className="flex gap-3">
                 <button
                   onClick={copyToClipboard}
-                  className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white py-3 rounded-xl font-semibold hover:from-purple-600 hover:to-pink-600 transition-all flex items-center justify-center gap-2 shadow-lg"
+                  className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-4 rounded-2xl font-black hover:from-indigo-700 hover:to-purple-700 transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
                 >
                   {copiedLink ? (
                     <>
-                      <span>✓</span>
-                      Lien copié !
+                      <span className="text-xl">✓</span>
+                      Copié !
                     </>
                   ) : (
                     <>
@@ -1158,16 +1360,111 @@ export default function CourseShareApp() {
                 
                 <button
                   onClick={revokeShareLink}
-                  className="bg-red-500/20 backdrop-blur text-red-300 px-4 py-3 rounded-xl font-semibold hover:bg-red-500/30 transition-all border border-red-500/30"
+                  className="bg-gradient-to-r from-red-500 to-pink-500 text-white px-6 py-4 rounded-2xl font-black hover:from-red-600 hover:to-pink-600 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1"
                   title="Révoquer le lien"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
               
-              <p className="text-xs text-purple-400 mt-4 text-center">
-                Les personnes ayant ce lien pourront voir et télécharger le cours sans compte
+              <p className="text-xs text-gray-500 mt-6 text-center font-semibold">
+                🌍 Les personnes avec ce lien pourront voir et télécharger le cours sans compte
               </p>
+            </div>
+          </div>
+        )}
+
+        {/* Comments Modal */}
+        {showComments && currentCourseForComments && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+            <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col">
+              <div className="flex items-center justify-between p-6 border-b-2 border-gray-200">
+                <div className="flex-1">
+                  <h2 className="text-2xl font-black text-gray-800">Commentaires & Évaluations 💬</h2>
+                  <p className="text-sm text-purple-600 font-bold">{currentCourseForComments.title}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowComments(false);
+                    setCurrentCourseForComments(null);
+                    setComments([]);
+                    setNewComment('');
+                    setNewRating(0);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-2xl p-3 transition-all"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-auto p-6">
+                {/* Add Comment Form */}
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-6 mb-6 border-2 border-purple-200">
+                  <h3 className="font-black text-gray-800 mb-4 text-lg">Ajouter une évaluation ⭐</h3>
+                  <div className="mb-4">
+                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                      Ta note
+                    </label>
+                    {renderStars(newRating, true, setNewRating)}
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                      Ton commentaire
+                    </label>
+                    <textarea
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-2xl text-gray-800 placeholder-gray-400 focus:ring-4 focus:ring-purple-300 outline-none font-semibold resize-none transition-all"
+                      rows="3"
+                      placeholder="Partage ton avis..."
+                    />
+                  </div>
+                  <button
+                    onClick={submitComment}
+                    className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-2xl font-black hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1"
+                  >
+                    Publier 🚀
+                  </button>
+                </div>
+
+                {/* Comments List */}
+                <div className="space-y-4">
+                  <h3 className="font-black text-gray-800 text-lg mb-4">
+                    Tous les commentaires ({comments.length})
+                  </h3>
+                  {comments.length === 0 ? (
+                    <div className="text-center py-8 bg-gray-50 rounded-2xl">
+                      <MessageSquare className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                      <p className="text-gray-500 font-semibold">Aucun commentaire pour le moment</p>
+                    </div>
+                  ) : (
+                    comments.map((comment) => (
+                      <div key={comment._id} className="bg-white border-2 border-gray-200 rounded-2xl p-4 hover:border-purple-300 transition-all">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-3 py-1 rounded-full font-bold text-sm">
+                              {comment.user.username}
+                            </div>
+                            {comment.rating && renderStars(comment.rating)}
+                          </div>
+                          {comment.user._id === user?.id && (
+                            <button
+                              onClick={() => deleteComment(comment._id)}
+                              className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 rounded-xl transition-all"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-gray-700 font-semibold mb-2">{comment.text}</p>
+                        <p className="text-xs text-gray-500 font-semibold">
+                          {formatDate(comment.createdAt)}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1175,21 +1472,21 @@ export default function CourseShareApp() {
         {/* PDF Viewer Modal */}
         {selectedCourse && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-            <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col border border-white/20">
-              <div className="flex items-center justify-between p-6 border-b border-white/20">
+            <div className="bg-white rounded-3xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col">
+              <div className="flex items-center justify-between p-6 border-b-2 border-gray-200">
                 <div>
-                  <h2 className="text-2xl font-bold text-white">{selectedCourse.title}</h2>
-                  <p className="text-sm text-purple-300">Par {selectedCourse.owner.username}</p>
+                  <h2 className="text-3xl font-black text-gray-800">{selectedCourse.title}</h2>
+                  <p className="text-lg text-purple-600 font-bold">Par {selectedCourse.owner.username}</p>
                 </div>
                 <button
                   onClick={() => setSelectedCourse(null)}
-                  className="text-purple-300 hover:text-white bg-white/10 hover:bg-white/20 rounded-xl p-2 transition-all"
+                  className="text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-2xl p-3 transition-all"
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-7 h-7" />
                 </button>
               </div>
               <div className="flex-1 overflow-auto p-6">
-                <div className="bg-white rounded-2xl overflow-hidden">
+                <div className="bg-gray-100 rounded-3xl overflow-hidden shadow-inner">
                   <iframe
                     src={`${BASE_URL}/${selectedCourse.filePath}`}
                     className="w-full h-full min-h-[700px] border-0"
@@ -1201,24 +1498,6 @@ export default function CourseShareApp() {
           </div>
         )}
       </div>
-
-      <style>{`
-        @keyframes blob {
-          0% { transform: translate(0px, 0px) scale(1); }
-          33% { transform: translate(30px, -50px) scale(1.1); }
-          66% { transform: translate(-20px, 20px) scale(0.9); }
-          100% { transform: translate(0px, 0px) scale(1); }
-        }
-        .animate-blob {
-          animation: blob 7s infinite;
-        }
-        .animation-delay-2000 {
-          animation-delay: 2s;
-        }
-        .animation-delay-4000 {
-          animation-delay: 4s;
-        }
-      `}</style>
     </div>
   );
 }

@@ -64,6 +64,15 @@ const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
+  favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course' }],
+  createdAt: { type: Date, default: Date.now }
+});
+
+const commentSchema = new mongoose.Schema({
+  course: { type: mongoose.Schema.Types.ObjectId, ref: 'Course', required: true },
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  text: { type: String, required: true },
+  rating: { type: Number, min: 1, max: 5 },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -80,11 +89,14 @@ const courseSchema = new mongoose.Schema({
   sharedWith: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   downloads: { type: Number, default: 0 },
   views: { type: Number, default: 0 },
+  averageRating: { type: Number, default: 0 },
+  ratingsCount: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
 
 const User = mongoose.model('User', userSchema);
+const Comment = mongoose.model('Comment', commentSchema);
 const Course = mongoose.model('Course', courseSchema);
 
 // Fonction pour générer un token unique
@@ -115,25 +127,22 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     const { username, email, password } = req.body;
 
-    // Vérifier si l'utilisateur existe déjà
     const existingUser = await User.findOne({ $or: [{ email }, { username }] });
     if (existingUser) {
       return res.status(400).json({ error: 'Email ou nom d\'utilisateur déjà utilisé' });
     }
 
-    // Hasher le mot de passe
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Créer l'utilisateur
     const user = new User({
       username,
       email,
-      password: hashedPassword
+      password: hashedPassword,
+      favorites: []
     });
 
     await user.save();
 
-    // Générer le token
     const token = jwt.sign({ userId: user._id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
 
     res.status(201).json({
@@ -154,19 +163,16 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Trouver l'utilisateur
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({ error: 'Email ou mot de passe incorrect' });
     }
 
-    // Vérifier le mot de passe
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
       return res.status(401).json({ error: 'Email ou mot de passe incorrect' });
     }
 
-    // Générer le token
     const token = jwt.sign({ userId: user._id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
 
     res.json({
@@ -180,6 +186,148 @@ app.post('/api/auth/login', async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: 'Erreur lors de la connexion', details: error.message });
+  }
+});
+
+// Routes pour les favoris
+app.post('/api/favorites/:courseId', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    const course = await Course.findById(req.params.courseId);
+
+    if (!course) {
+      return res.status(404).json({ error: 'Cours non trouvé' });
+    }
+
+    if (user.favorites.includes(req.params.courseId)) {
+      return res.status(400).json({ error: 'Cours déjà dans les favoris' });
+    }
+
+    user.favorites.push(req.params.courseId);
+    await user.save();
+
+    res.json({ message: 'Cours ajouté aux favoris', favorites: user.favorites });
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur lors de l\'ajout aux favoris', details: error.message });
+  }
+});
+
+app.delete('/api/favorites/:courseId', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+
+    user.favorites = user.favorites.filter(id => id.toString() !== req.params.courseId);
+    await user.save();
+
+    res.json({ message: 'Cours retiré des favoris', favorites: user.favorites });
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur lors du retrait des favoris', details: error.message });
+  }
+});
+
+app.get('/api/favorites', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).populate({
+      path: 'favorites',
+      populate: { path: 'owner', select: 'username email' }
+    });
+
+    res.json(user.favorites || []);
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur lors de la récupération des favoris', details: error.message });
+  }
+});
+
+// Routes pour les commentaires
+app.post('/api/courses/:courseId/comments', authenticateToken, async (req, res) => {
+  try {
+    const { text, rating } = req.body;
+    const course = await Course.findById(req.params.courseId);
+
+    if (!course) {
+      return res.status(404).json({ error: 'Cours non trouvé' });
+    }
+
+    const comment = new Comment({
+      course: req.params.courseId,
+      user: req.user.userId,
+      text,
+      rating: rating || null
+    });
+
+    await comment.save();
+
+    // Mettre à jour la note moyenne si une évaluation est fournie
+    if (rating) {
+      const comments = await Comment.find({ course: req.params.courseId, rating: { $exists: true, $ne: null } });
+      const totalRating = comments.reduce((sum, c) => sum + c.rating, 0);
+      course.averageRating = totalRating / comments.length;
+      course.ratingsCount = comments.length;
+      await course.save();
+    }
+
+    const populatedComment = await Comment.findById(comment._id).populate('user', 'username');
+
+    res.status(201).json({ 
+      message: 'Commentaire ajouté avec succès', 
+      comment: populatedComment,
+      averageRating: course.averageRating,
+      ratingsCount: course.ratingsCount
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur lors de l\'ajout du commentaire', details: error.message });
+  }
+});
+
+app.get('/api/courses/:courseId/comments', async (req, res) => {
+  try {
+    const comments = await Comment.find({ course: req.params.courseId })
+      .populate('user', 'username')
+      .sort({ createdAt: -1 });
+
+    res.json(comments);
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur lors de la récupération des commentaires', details: error.message });
+  }
+});
+
+app.delete('/api/comments/:commentId', authenticateToken, async (req, res) => {
+  try {
+    const comment = await Comment.findById(req.params.commentId);
+
+    if (!comment) {
+      return res.status(404).json({ error: 'Commentaire non trouvé' });
+    }
+
+    if (comment.user.toString() !== req.user.userId) {
+      return res.status(403).json({ error: 'Accès non autorisé' });
+    }
+
+    const courseId = comment.course;
+    const hadRating = comment.rating !== null && comment.rating !== undefined;
+
+    await Comment.findByIdAndDelete(req.params.commentId);
+
+    // Recalculer la note moyenne si le commentaire avait une évaluation
+    if (hadRating) {
+      const course = await Course.findById(courseId);
+      const comments = await Comment.find({ course: courseId, rating: { $exists: true, $ne: null } });
+      
+      if (comments.length > 0) {
+        const totalRating = comments.reduce((sum, c) => sum + c.rating, 0);
+        course.averageRating = totalRating / comments.length;
+        course.ratingsCount = comments.length;
+      } else {
+        course.averageRating = 0;
+        course.ratingsCount = 0;
+      }
+      
+      await course.save();
+    }
+
+    res.json({ message: 'Commentaire supprimé avec succès' });
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur lors de la suppression du commentaire', details: error.message });
   }
 });
 
@@ -200,7 +348,9 @@ app.post('/api/courses', authenticateToken, upload.single('file'), async (req, r
       filePath: req.file.path,
       fileSize: req.file.size,
       owner: req.user.userId,
-      shared: shared === 'true'
+      shared: shared === 'true',
+      averageRating: 0,
+      ratingsCount: 0
     });
 
     await course.save();
@@ -214,7 +364,6 @@ app.post('/api/courses', authenticateToken, upload.single('file'), async (req, r
   }
 });
 
-// Récupérer les cours de l'utilisateur (mes cours)
 app.get('/api/courses', authenticateToken, async (req, res) => {
   try {
     const { search } = req.query;
@@ -250,14 +399,12 @@ app.get('/api/courses', authenticateToken, async (req, res) => {
   }
 });
 
-// Récupérer uniquement les cours de l'utilisateur
 app.get('/api/courses/my-courses', authenticateToken, async (req, res) => {
   try {
     const { search, category } = req.query;
     
     let query = { owner: req.user.userId };
 
-    // Filtrer par catégorie si spécifiée
     if (category && category !== 'Toutes') {
       query.category = category;
     }
@@ -291,14 +438,12 @@ app.get('/api/courses/my-courses', authenticateToken, async (req, res) => {
   }
 });
 
-// Récupérer tous les cours publics (découvrir)
 app.get('/api/courses/public', authenticateToken, async (req, res) => {
   try {
     const { search, sort, category } = req.query;
     
     let query = { shared: true };
 
-    // Filtrer par catégorie si spécifiée
     if (category && category !== 'Toutes') {
       query.category = category;
     }
@@ -322,12 +467,14 @@ app.get('/api/courses/public', authenticateToken, async (req, res) => {
       };
     }
 
-    let sortOptions = { createdAt: -1 }; // Par défaut: plus récents
+    let sortOptions = { createdAt: -1 };
 
     if (sort === 'popular') {
       sortOptions = { views: -1 };
     } else if (sort === 'downloads') {
       sortOptions = { downloads: -1 };
+    } else if (sort === 'rating') {
+      sortOptions = { averageRating: -1 };
     } else if (sort === 'recent') {
       sortOptions = { createdAt: -1 };
     }
@@ -342,7 +489,6 @@ app.get('/api/courses/public', authenticateToken, async (req, res) => {
   }
 });
 
-// Récupérer les cours partagés avec moi
 app.get('/api/courses/shared-with-me', authenticateToken, async (req, res) => {
   try {
     const { search } = req.query;
@@ -380,7 +526,6 @@ app.get('/api/courses/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Cours non trouvé' });
     }
 
-    // Vérifier les permissions
     const canAccess = 
       course.owner._id.toString() === req.user.userId ||
       course.shared ||
@@ -390,7 +535,6 @@ app.get('/api/courses/:id', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Accès non autorisé' });
     }
 
-    // Incrémenter les vues
     course.views += 1;
     await course.save();
 
@@ -408,7 +552,6 @@ app.patch('/api/courses/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Cours non trouvé' });
     }
 
-    // Vérifier que l'utilisateur est le propriétaire
     if (course.owner.toString() !== req.user.userId) {
       return res.status(403).json({ error: 'Accès non autorisé' });
     }
@@ -440,15 +583,16 @@ app.delete('/api/courses/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Cours non trouvé' });
     }
 
-    // Vérifier que l'utilisateur est le propriétaire
     if (course.owner.toString() !== req.user.userId) {
       return res.status(403).json({ error: 'Accès non autorisé' });
     }
 
-    // Supprimer le fichier
     if (fs.existsSync(course.filePath)) {
       fs.unlinkSync(course.filePath);
     }
+
+    // Supprimer tous les commentaires associés
+    await Comment.deleteMany({ course: req.params.id });
 
     await Course.findByIdAndDelete(req.params.id);
 
@@ -466,7 +610,6 @@ app.get('/api/courses/:id/download', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Cours non trouvé' });
     }
 
-    // Vérifier les permissions
     const canAccess = 
       course.owner.toString() === req.user.userId ||
       course.shared ||
@@ -476,7 +619,6 @@ app.get('/api/courses/:id/download', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Accès non autorisé' });
     }
 
-    // Incrémenter les téléchargements
     course.downloads += 1;
     await course.save();
 
@@ -486,7 +628,6 @@ app.get('/api/courses/:id/download', authenticateToken, async (req, res) => {
   }
 });
 
-// Générer un lien de partage
 app.post('/api/courses/:id/share-link', authenticateToken, async (req, res) => {
   try {
     const course = await Course.findById(req.params.id);
@@ -495,12 +636,10 @@ app.post('/api/courses/:id/share-link', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Cours non trouvé' });
     }
 
-    // Vérifier que l'utilisateur est le propriétaire
     if (course.owner.toString() !== req.user.userId) {
       return res.status(403).json({ error: 'Accès non autorisé' });
     }
 
-    // Générer un token unique si pas déjà existant
     if (!course.shareToken) {
       course.shareToken = generateShareToken();
       course.shared = true;
@@ -519,7 +658,6 @@ app.post('/api/courses/:id/share-link', authenticateToken, async (req, res) => {
   }
 });
 
-// Révoquer un lien de partage
 app.delete('/api/courses/:id/share-link', authenticateToken, async (req, res) => {
   try {
     const course = await Course.findById(req.params.id);
@@ -528,7 +666,6 @@ app.delete('/api/courses/:id/share-link', authenticateToken, async (req, res) =>
       return res.status(404).json({ error: 'Cours non trouvé' });
     }
 
-    // Vérifier que l'utilisateur est le propriétaire
     if (course.owner.toString() !== req.user.userId) {
       return res.status(403).json({ error: 'Accès non autorisé' });
     }
@@ -542,7 +679,6 @@ app.delete('/api/courses/:id/share-link', authenticateToken, async (req, res) =>
   }
 });
 
-// Accéder à un cours via le lien de partage (sans authentification)
 app.get('/api/courses/share/:token', async (req, res) => {
   try {
     const course = await Course.findOne({ shareToken: req.params.token })
@@ -552,7 +688,6 @@ app.get('/api/courses/share/:token', async (req, res) => {
       return res.status(404).json({ error: 'Cours non trouvé ou lien invalide' });
     }
 
-    // Incrémenter les vues
     course.views += 1;
     await course.save();
 
@@ -562,7 +697,6 @@ app.get('/api/courses/share/:token', async (req, res) => {
   }
 });
 
-// Télécharger via le lien de partage (sans authentification)
 app.get('/api/courses/share/:token/download', async (req, res) => {
   try {
     const course = await Course.findOne({ shareToken: req.params.token });
@@ -571,7 +705,6 @@ app.get('/api/courses/share/:token/download', async (req, res) => {
       return res.status(404).json({ error: 'Cours non trouvé ou lien invalide' });
     }
 
-    // Incrémenter les téléchargements
     course.downloads += 1;
     await course.save();
 
@@ -581,7 +714,6 @@ app.get('/api/courses/share/:token/download', async (req, res) => {
   }
 });
 
-// Récupérer toutes les catégories utilisées
 app.get('/api/categories', authenticateToken, async (req, res) => {
   try {
     const categories = await Course.distinct('category');
@@ -591,12 +723,10 @@ app.get('/api/categories', authenticateToken, async (req, res) => {
   }
 });
 
-// Route de santé
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Serveur fonctionnel' });
 });
 
-// Démarrage du serveur
 app.listen(PORT, () => {
   console.log(`🚀 Serveur démarré sur le port ${PORT}`);
 });
