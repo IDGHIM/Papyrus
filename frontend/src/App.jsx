@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, FileText, Share2, Download, Trash2, Search, Eye, LogOut, User, Lock, Mail, X, Copy, Link as LinkIcon, ArrowLeft, TrendingUp, Clock, Download as DownloadIcon, Star, Users, Award, BookOpen, Sparkles, Zap, Heart, MessageSquare } from 'lucide-react';
+import { Upload, FileText, Share2, Download, Trash2, Search, Eye, LogOut, User, Lock, Mail, X, Copy, Link as LinkIcon, ArrowLeft, Clock, Star, BookOpen, Sparkles, Zap, Heart, MessageSquare } from 'lucide-react';
 
 const API_URL  = import.meta.env.VITE_API_URL  || 'http://localhost:5000/api';
-const BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:5000';
 
 export default function CourseShareApp() {
   // États d'authentification
@@ -58,7 +57,7 @@ export default function CourseShareApp() {
   // Formulaire d'authentification
   const [authForm, setAuthForm] = useState({ username: '', email: '', password: '', confirmPassword: '' });
 
-  // ─── NOUVEAU : États pour mot de passe oublié / réinitialisation ───────────
+  // États pour mot de passe oublié / réinitialisation
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
@@ -71,34 +70,28 @@ export default function CourseShareApp() {
   const [resetLoading, setResetLoading] = useState(false);
   const [resetMessage, setResetMessage] = useState('');
   const [resetError, setResetError] = useState('');
-  const [resetTokenValid, setResetTokenValid] = useState(null); // null=checking, true=valid, false=invalid
+  const [resetTokenValid, setResetTokenValid] = useState(null);
   const [resetUsername, setResetUsername] = useState('');
   const [resetSecondsLeft, setResetSecondsLeft] = useState(null);
-  // ──────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     const path = window.location.pathname;
     const shareMatch = path.match(/^\/share\/([a-f0-9]+)$/);
-    // ─── NOUVEAU : détecter la route /reset-password/:token ───────────────
     const resetMatch = path.match(/^\/reset-password\/([a-f0-9]+)$/);
-    // ─────────────────────────────────────────────────────────────────────
 
     if (shareMatch) {
       const token = shareMatch[1];
       setIsPublicView(true);
       loadPublicCourse(token);
     } else if (resetMatch) {
-      // ─── NOUVEAU : afficher le formulaire de réinitialisation ─────────
       const token = resetMatch[1];
       setResetToken(token);
       setShowResetModal(true);
       setShowAuthModal(false);
       verifyResetToken(token);
-      // ──────────────────────────────────────────────────────────────────
     } else {
       const token    = localStorage.getItem('token');
       const userData = localStorage.getItem('user');
-
       if (token && userData) {
         setIsAuthenticated(true);
         setUser(JSON.parse(userData));
@@ -115,7 +108,7 @@ export default function CourseShareApp() {
     }
   }, [activeTab, sortBy, categoryFilter]);
 
-  // ─── NOUVEAU : Compte à rebours pour le token de reset ─────────────────
+  // Compte à rebours pour le token de reset
   useEffect(() => {
     if (resetSecondsLeft === null || resetSecondsLeft <= 0) return;
     const interval = setInterval(() => {
@@ -131,7 +124,30 @@ export default function CourseShareApp() {
     }, 1000);
     return () => clearInterval(interval);
   }, [resetSecondsLeft]);
-  // ────────────────────────────────────────────────────────────────────────
+
+  // ─── Helper : résout l'URL du PDF ────────────────────────────────────────
+  // filePath peut être soit une URL Cloudinary complète, soit un chemin relatif
+  const resolvePdfUrl = (filePath) => {
+    if (!filePath) return '';
+    // Si c'est déjà une URL absolue (Cloudinary, http, https…)
+    if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+      return filePath;
+    }
+    // Sinon, c'est un chemin relatif servi par le backend
+    const BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:5000';
+    return `${BASE_URL}/${filePath}`;
+  };
+
+  // ─── Helper : URL pour l'iframe (Google Docs Viewer en fallback) ──────────
+  const getPdfViewerUrl = (filePath) => {
+    const url = resolvePdfUrl(filePath);
+    // Pour les fichiers Cloudinary (raw), on passe par Google Docs Viewer
+    // pour contourner les problèmes de CORS / Content-Type
+    if (url.includes('cloudinary.com')) {
+      return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
+    }
+    return url;
+  };
 
   const loadPublicCourse = async (token) => {
     setPublicLoading(true);
@@ -164,11 +180,6 @@ export default function CourseShareApp() {
     }
   };
 
-  // ═══════════════════════════════════════════════════════════════════
-  // ─── NOUVEAU : Fonctions mot de passe oublié / réinitialisation ──
-  // ═══════════════════════════════════════════════════════════════════
-
-  /** Vérifie si le token de reset est valide avant d'afficher le formulaire */
   const verifyResetToken = async (token) => {
     setResetTokenValid(null);
     try {
@@ -188,7 +199,6 @@ export default function CourseShareApp() {
     }
   };
 
-  /** Soumet la demande "mot de passe oublié" */
   const handleForgotPassword = async (e) => {
     e.preventDefault();
     setForgotLoading(true);
@@ -210,7 +220,6 @@ export default function CourseShareApp() {
     }
   };
 
-  /** Soumet le nouveau mot de passe */
   const handleResetPassword = async (e) => {
     e.preventDefault();
     setResetLoading(true);
@@ -225,7 +234,6 @@ export default function CourseShareApp() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Erreur serveur');
       setResetMessage(data.message);
-      // Redirige vers la page de login après 2 secondes
       setTimeout(() => {
         setShowResetModal(false);
         setShowAuthModal(true);
@@ -239,14 +247,12 @@ export default function CourseShareApp() {
     }
   };
 
-  /** Formate mm:ss à partir des secondes restantes */
   const formatCountdown = (seconds) => {
     if (seconds === null) return '';
     const m = Math.floor(seconds / 60).toString().padStart(2, '0');
     const s = (seconds % 60).toString().padStart(2, '0');
     return `${m}:${s}`;
   };
-  // ═══════════════════════════════════════════════════════════════════
 
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
@@ -326,7 +332,6 @@ export default function CourseShareApp() {
     }
   };
 
-  // Fonctions pour les favoris
   const loadFavorites = async () => {
     try {
       const token    = localStorage.getItem('token');
@@ -357,7 +362,6 @@ export default function CourseShareApp() {
 
   const isFavorite = (courseId) => favorites.some(fav => fav._id === courseId);
 
-  // Fonctions pour les commentaires et évaluations
   const loadComments = async (courseId) => {
     try {
       const response = await fetch(`${API_URL}/courses/${courseId}/comments`);
@@ -702,8 +706,14 @@ export default function CourseShareApp() {
                 <Download className="w-6 h-6" />Télécharger
               </button>
             </div>
+
+            {/* ── FIXED: iframe utilise getPdfViewerUrl() ── */}
             <div className="border-4 border-gray-200 rounded-3xl overflow-hidden bg-gray-100 shadow-inner">
-              <iframe src={`${BASE_URL}/${publicCourse.filePath}`} className="w-full h-[800px] border-0" title={publicCourse.title} />
+              <iframe
+                src={getPdfViewerUrl(publicCourse.filePath)}
+                className="w-full h-[800px] border-0"
+                title={publicCourse.title}
+              />
             </div>
           </div>
 
@@ -721,7 +731,7 @@ export default function CourseShareApp() {
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  // ─── NOUVEAU : Page de réinitialisation du mot de passe ──────────
+  // Page de réinitialisation du mot de passe
   // ═══════════════════════════════════════════════════════════════════
 
   if (showResetModal) {
@@ -736,7 +746,6 @@ export default function CourseShareApp() {
             <p className="text-gray-600 text-lg font-semibold">Nouveau mot de passe 🔒</p>
           </div>
 
-          {/* Vérification du token en cours */}
           {resetTokenValid === null && (
             <div className="text-center py-8">
               <div className="w-12 h-12 border-4 border-purple-300 border-t-purple-600 rounded-full animate-spin mx-auto mb-4"></div>
@@ -744,7 +753,6 @@ export default function CourseShareApp() {
             </div>
           )}
 
-          {/* Token invalide */}
           {resetTokenValid === false && (
             <div className="text-center">
               <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-6 mb-6">
@@ -764,7 +772,6 @@ export default function CourseShareApp() {
             </div>
           )}
 
-          {/* Token valide → formulaire */}
           {resetTokenValid === true && !resetMessage && (
             <form onSubmit={handleResetPassword} className="space-y-5">
               {resetUsername && (
@@ -830,7 +837,6 @@ export default function CourseShareApp() {
             </form>
           )}
 
-          {/* Succès */}
           {resetMessage && (
             <div className="text-center">
               <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-6 mb-6">
@@ -919,7 +925,6 @@ export default function CourseShareApp() {
             </button>
           </form>
 
-          {/* ─── NOUVEAU : Lien "Mot de passe oublié" ── */}
           {authMode === 'login' && (
             <div className="mt-4 text-center">
               <button
@@ -930,7 +935,6 @@ export default function CourseShareApp() {
               </button>
             </div>
           )}
-          {/* ──────────────────────────────────────────── */}
 
           <div className="mt-6 text-center">
             <button
@@ -942,7 +946,7 @@ export default function CourseShareApp() {
           </div>
         </div>
 
-        {/* ─── NOUVEAU : Modal "Mot de passe oublié" ─────────────────────── */}
+        {/* Modal "Mot de passe oublié" */}
         {showForgotModal && (
           <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
             <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8">
@@ -997,7 +1001,6 @@ export default function CourseShareApp() {
                   </form>
                 </>
               ) : (
-                /* Message de succès */
                 <div className="text-center py-4">
                   <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-green-500 to-emerald-500 rounded-full mb-6 shadow-lg">
                     <Mail className="w-10 h-10 text-white" />
@@ -1018,7 +1021,6 @@ export default function CourseShareApp() {
             </div>
           </div>
         )}
-        {/* ──────────────────────────────────────────────────────────────────── */}
       </div>
     );
   }
@@ -1359,7 +1361,7 @@ export default function CourseShareApp() {
           </div>
         )}
 
-        {/* PDF Viewer Modal */}
+        {/* ── FIXED: PDF Viewer Modal utilise getPdfViewerUrl() ── */}
         {selectedCourse && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
             <div className="bg-white rounded-3xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col">
@@ -1368,13 +1370,27 @@ export default function CourseShareApp() {
                   <h2 className="text-3xl font-black text-gray-800">{selectedCourse.title}</h2>
                   <p className="text-lg text-purple-600 font-bold">Par {selectedCourse.owner.username}</p>
                 </div>
-                <button onClick={() => setSelectedCourse(null)} className="text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-2xl p-3 transition-all">
-                  <X className="w-7 h-7" />
-                </button>
+                <div className="flex items-center gap-3">
+                  <a
+                    href={resolvePdfUrl(selectedCourse.filePath)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-4 py-3 rounded-2xl font-bold shadow-lg hover:shadow-xl hover:from-green-600 hover:to-emerald-600 transition-all transform hover:-translate-y-1"
+                  >
+                    <Download className="w-5 h-5" />Ouvrir
+                  </a>
+                  <button onClick={() => setSelectedCourse(null)} className="text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-2xl p-3 transition-all">
+                    <X className="w-7 h-7" />
+                  </button>
+                </div>
               </div>
               <div className="flex-1 overflow-auto p-6">
                 <div className="bg-gray-100 rounded-3xl overflow-hidden shadow-inner">
-                  <iframe src={`${BASE_URL}/${selectedCourse.filePath}`} className="w-full h-full min-h-[700px] border-0" title={selectedCourse.title} />
+                  <iframe
+                    src={getPdfViewerUrl(selectedCourse.filePath)}
+                    className="w-full h-full min-h-[700px] border-0"
+                    title={selectedCourse.title}
+                  />
                 </div>
               </div>
             </div>
