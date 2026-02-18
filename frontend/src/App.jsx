@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Upload, FileText, Share2, Download, Trash2, Search, Eye, LogOut, User, Lock, Mail, X, Copy, Link as LinkIcon, ArrowLeft, TrendingUp, Clock, Download as DownloadIcon, Star, Users, Award, BookOpen, Sparkles, Zap, Heart, MessageSquare } from 'lucide-react';
 
-const API_URL = 'http://localhost:5000/api';
-const BASE_URL = 'http://localhost:5000';
+const API_URL  = import.meta.env.VITE_API_URL  || 'http://localhost:5000/api';
+const BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:5000';
 
 export default function CourseShareApp() {
   // États d'authentification
