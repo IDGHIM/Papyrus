@@ -1,261 +1,211 @@
-# Papyrus - Plateforme de Partage de Cours PDF
+# 📚 Papyrus
 
-Une application web complète permettant aux utilisateurs de télécharger, partager et gérer des cours au format PDF avec un système d'authentification multi-utilisateurs.
+> Ta bibliothèque de connaissances — Partage et découvre des cours en PDF avec ta communauté.
 
-## 🚀 Fonctionnalités
-
-### Authentification
-- ✅ Inscription et connexion sécurisée
-- ✅ Authentification JWT
-- ✅ Hachage des mots de passe avec bcrypt
-- ✅ Sessions persistantes
-
-### Gestion des Cours
-- 📤 Upload de fichiers PDF (max 10 MB)
-- 📚 Bibliothèque personnelle de cours
-- 🔍 Recherche en temps réel
-- 👁️ Visualisation PDF intégrée
-- 📥 Téléchargement de cours
-- 🗑️ Suppression de cours (propriétaire uniquement)
-
-### Partage
-- 🌐 Partage public/privé
-- 📊 Statistiques (vues, téléchargements)
-- 👥 Accès multi-utilisateurs aux cours publics
-- 🔒 Protection des cours privés
-
-## 🛠️ Technologies Utilisées
-
-### Backend
-- **Node.js** + **Express.js** - Serveur API REST
-- **MongoDB** + **Mongoose** - Base de données
-- **JWT** - Authentification
-- **Bcrypt** - Sécurité des mots de passe
-- **Multer** - Upload de fichiers
-
-### Frontend
-- **React** - Interface utilisateur
-- **Tailwind CSS** - Styling
-- **Lucide React** - Icônes
-- **Fetch API** - Communication avec le backend
-
-## 📦 Installation
-
-### Prérequis
-- Node.js (v14 ou supérieur)
-- MongoDB (local ou Atlas)
-- npm ou yarn
-
-### 1️⃣ Cloner le Projet
-
-```bash
-git clone <votre-repo>
-cd course-share
-```
-
-### 2️⃣ Configuration du Backend
-
-```bash
-cd backend
-npm install
-```
-
-Créez un fichier `.env` à la racine du dossier backend :
-
-```env
-PORT=5000
-MONGODB_URI=mongodb://localhost:27017/course-share
-JWT_SECRET=votre-clé-secrète-super-sécurisée-à-changer
-NODE_ENV=development
-```
-
-⚠️ **Important** : Changez le `JWT_SECRET` en production !
-
-### 3️⃣ Configuration du Frontend
-
-```bash
-cd frontend
-npm install
-```
-
-Si nécessaire, ajustez l'URL de l'API dans `src/App.jsx` :
-
-```javascript
-const API_URL = 'http://localhost:5000/api';
-```
-
-## 🚀 Démarrage
-
-### Lancer MongoDB
-
-Si MongoDB est installé localement :
-
-```bash
-mongod
-```
-
-Ou utilisez MongoDB Atlas pour une base de données cloud.
-
-### Démarrer le Backend
-
-```bash
-cd backend
-npm run dev
-```
-
-Le serveur démarre sur `http://localhost:5000`
-
-### Démarrer le Frontend
-
-Dans un nouveau terminal :
-
-```bash
-cd frontend
-npm run dev
-```
-
-L'application React démarre sur `http://localhost:5173` (ou le port indiqué)
-
-## 📖 Utilisation
-
-### 1. Inscription/Connexion
-- Créez un compte avec un nom d'utilisateur, email et mot de passe
-- Ou connectez-vous avec vos identifiants existants
-
-### 2. Ajouter un Cours
-- Cliquez sur la zone d'upload
-- Sélectionnez un fichier PDF (max 4 Mo)
-- Le cours est ajouté automatiquement
-
-### 3. Gérer vos Cours
-- **Voir** : Prévisualisez le PDF dans un viewer intégré
-- **Partager** : Basculez entre Public/Privé
-- **Télécharger** : Récupérez le fichier original
-- **Supprimer** : Retirez définitivement le cours (propriétaire uniquement)
-
-### 4. Rechercher
-- Utilisez la barre de recherche pour filtrer par titre ou description
-
-### 5. Accéder aux Cours Partagés
-- Tous les cours publics sont visibles par tous les utilisateurs
-- Les cours privés ne sont visibles que par leur propriétaire
-
-## 🗂️ Structure du Projet
-
-```
-papyrus/
-├── backend/
-│   ├── server.js           # Point d'entrée du serveur
-│   ├── package.json        # Dépendances backend
-│   ├── .env.example        # Variables d'environnement exemple
-│   └── uploads/            # Dossier de stockage des PDF (créé auto)
-│
-└── frontend/
-    ├── src/
-    │   └── App.jsx         # Application React principale
-    ├── package.json        # Dépendances frontend
-    └── index.html          # Page HTML de base
-```
-
-## 🔐 API Endpoints
-
-### Authentification
-- `POST /api/auth/register` - Inscription
-- `POST /api/auth/login` - Connexion
-
-### Cours
-- `GET /api/courses` - Liste des cours accessibles
-- `POST /api/courses` - Upload d'un nouveau cours
-- `GET /api/courses/:id` - Détails d'un cours
-- `PATCH /api/courses/:id` - Modifier un cours
-- `DELETE /api/courses/:id` - Supprimer un cours
-- `GET /api/courses/:id/download` - Télécharger un cours
-
-### Santé
-- `GET /api/health` - Vérifier l'état du serveur
-
-## 🔒 Sécurité
-
-- ✅ Mots de passe hachés avec bcrypt (10 rounds)
-- ✅ Tokens JWT avec expiration (7 jours)
-- ✅ Validation des types de fichiers (PDF uniquement)
-- ✅ Limitation de taille des fichiers (10 MB)
-- ✅ Protection des routes avec middleware d'authentification
-- ✅ Vérification des permissions propriétaire
-
-## 🎨 Personnalisation
-
-### Modifier le Design
-Le frontend utilise Tailwind CSS avec un thème personnalisé :
-- Gradient principal : Purple → Pink
-- Effets de blob animés pour l'authentification
-- Animations de hover sur les cartes
-
-### Ajuster les Limites
-Dans `backend/server.js` :
-
-```javascript
-limits: {
-  fileSize: 4 * 1024 * 1024 // 4 Mo
-}
-```
-
-### Changer la Durée des Tokens
-Dans `backend/server.js` :
-
-```javascript
-jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' }) // Modifier ici
-```
-
-## 🐛 Résolution de Problèmes
-
-### Le serveur ne démarre pas
-- Vérifiez que MongoDB est en cours d'exécution
-- Vérifiez que le port 5000 n'est pas déjà utilisé
-
-### Erreur CORS
-- Assurez-vous que le backend autorise l'origine du frontend
-- Vérifiez la configuration CORS dans `server.js`
-
-### Les fichiers ne s'uploadent pas
-- Vérifiez les permissions du dossier `uploads/`
-- Vérifiez la taille du fichier (< 10 MB)
-- Vérifiez que le fichier est bien un PDF
-
-### Token invalide
-- Supprimez le localStorage et reconnectez-vous
-- Vérifiez que le `JWT_SECRET` est identique entre les requêtes
-
-## 📝 TODO / Améliorations Futures
-
-- [ ] Partage avec des utilisateurs spécifiques
-- [ ] Catégories et tags pour les cours
-- [ ] Commentaires et évaluations
-- [ ] Notifications en temps réel
-- [ ] Upload multiple de fichiers
-- [ ] Prévisualisation thumbnail des PDF
-- [ ] Pagination pour grandes bibliothèques
-- [ ] Export/Import de cours
-- [ ] Thème sombre
-- [ ] Support multi-langues
-
-## 📄 Licence
-
-Ce projet est sous licence MIT.
-
-## 🤝 Contribution
-
-Les contributions sont les bienvenues ! N'hésitez pas à :
-1. Fork le projet
-2. Créer une branche pour votre feature
-3. Commit vos changements
-4. Push vers la branche
-5. Ouvrir une Pull Request
-
-## 👨‍💻 Auteur
-
-Créé avec ❤️ pour faciliter le partage de connaissances
+![License](https://img.shields.io/badge/license-MIT-purple)
+![Node.js](https://img.shields.io/badge/Node.js-18%2B-green)
+![React](https://img.shields.io/badge/React-18-blue)
+![MongoDB](https://img.shields.io/badge/MongoDB-Atlas%20%2F%20Local-brightgreen)
 
 ---
 
-**Bon partage de cours ! 📚✨**
+## ✨ Présentation
+
+**Papyrus** est une application web fullstack permettant aux étudiants et enseignants de partager des cours en PDF. Elle offre une expérience moderne avec authentification sécurisée, partage par lien, système de favoris, commentaires et évaluations.
+
+### Fonctionnalités principales
+
+- 📤 **Upload de PDF** — Ajout de cours (max 10 Mo) avec titre et catégorie
+- 🌍 **Découverte** — Exploration des cours publics, triables par popularité, téléchargements ou note
+- 🔗 **Partage par lien** — Génération d'un lien unique permettant l'accès sans compte
+- ❤️ **Favoris** — Sauvegarde de cours pour y accéder rapidement
+- 💬 **Commentaires & évaluations** — Notes sur 5 étoiles et avis sur chaque cours
+- 🔒 **Réinitialisation de mot de passe** — Flux complet par email avec lien expirant en 7 minutes
+- 📊 **Statistiques** — Compteurs de vues et de téléchargements par cours
+
+---
+
+## 🛠️ Stack technique
+
+| Couche | Technologie |
+|---|---|
+| Frontend | React 18, Tailwind CSS, Lucide React |
+| Backend | Node.js, Express |
+| Base de données | MongoDB (Mongoose) |
+| Auth | JWT (jsonwebtoken), bcryptjs |
+| Upload | Multer |
+| Email | Nodemailer (SMTP) |
+
+---
+
+## 🚀 Installation
+
+### Prérequis
+
+- Node.js ≥ 18
+- MongoDB (local ou Atlas)
+- Un compte SMTP (ex : Gmail avec mot de passe d'application)
+
+### 1. Cloner le dépôt
+
+```bash
+git clone https://github.com/ton-pseudo/papyrus.git
+cd papyrus
+```
+
+### 2. Installer les dépendances
+
+```bash
+# Backend
+npm install
+
+# Frontend (dans le dossier client si séparé)
+cd client && npm install
+```
+
+### 3. Configurer les variables d'environnement
+
+Crée un fichier `.env` à la racine du backend :
+
+```env
+# Serveur
+PORT=5000
+CLIENT_URL=http://localhost:3000
+
+# MongoDB
+MONGODB_URI=mongodb://localhost:27017/course-share
+
+# JWT
+JWT_SECRET=change_moi_en_production
+
+# SMTP (exemple Gmail)
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=ton@email.com
+EMAIL_PASS=ton_mot_de_passe_application
+EMAIL_FROM="Papyrus 📚 <no-reply@papyrus.app>"
+```
+
+> **Gmail** : Active l'authentification à deux facteurs puis génère un [mot de passe d'application](https://myaccount.google.com/apppasswords).
+
+### 4. Lancer l'application
+
+```bash
+# Backend
+node server.js
+
+# Frontend (dans un autre terminal)
+npm run dev
+```
+
+L'API sera disponible sur `http://localhost:5000` et le frontend sur `http://localhost:3000`.
+
+---
+
+## 📁 Structure du projet
+
+```
+papyrus/
+├── server.js            # Serveur Express + toutes les routes API
+├── uploads/             # Fichiers PDF uploadés (créé automatiquement)
+├── .env                 # Variables d'environnement (non versionné)
+├── package.json
+└── client/
+    └── src/
+        └── App.jsx      # Application React (composant principal)
+```
+
+---
+
+## 🔌 API — Endpoints principaux
+
+### Authentification
+
+| Méthode | Route | Description |
+|---|---|---|
+| `POST` | `/api/auth/register` | Inscription |
+| `POST` | `/api/auth/login` | Connexion |
+| `POST` | `/api/auth/forgot-password` | Demande de réinitialisation |
+| `GET` | `/api/auth/reset-password/:token` | Vérification du token |
+| `POST` | `/api/auth/reset-password/:token` | Nouveau mot de passe |
+
+### Cours
+
+| Méthode | Route | Description |
+|---|---|---|
+| `GET` | `/api/courses/my-courses` | Mes cours |
+| `GET` | `/api/courses/public` | Cours publics |
+| `POST` | `/api/courses` | Upload d'un cours |
+| `PATCH` | `/api/courses/:id` | Modifier un cours |
+| `DELETE` | `/api/courses/:id` | Supprimer un cours |
+| `GET` | `/api/courses/:id/download` | Télécharger un PDF |
+| `POST` | `/api/courses/:id/share-link` | Générer un lien de partage |
+| `DELETE` | `/api/courses/:id/share-link` | Révoquer un lien |
+| `GET` | `/api/courses/share/:token` | Accès public par lien |
+
+### Favoris & Commentaires
+
+| Méthode | Route | Description |
+|---|---|---|
+| `GET` | `/api/favorites` | Mes favoris |
+| `POST` | `/api/favorites/:courseId` | Ajouter un favori |
+| `DELETE` | `/api/favorites/:courseId` | Retirer un favori |
+| `GET` | `/api/courses/:id/comments` | Commentaires d'un cours |
+| `POST` | `/api/courses/:id/comments` | Ajouter un commentaire |
+| `DELETE` | `/api/comments/:commentId` | Supprimer un commentaire |
+
+---
+
+## 🗂️ Catégories disponibles
+
+Mathématiques · Physique · Chimie · Informatique · Histoire · Géographie · Philosophie · Langues · Économie · Droit · Médecine · Biologie · Littérature · Arts · Sport · Autre
+
+---
+
+## 🔐 Sécurité
+
+- Les mots de passe sont hashés avec **bcrypt** (salt rounds : 10)
+- Les tokens JWT expirent après **7 jours**
+- Les liens de réinitialisation de mot de passe expirent après **7 minutes**
+- Les réponses de la route `forgot-password` sont génériques pour ne pas révéler si un email existe en base
+- L'accès aux fichiers est contrôlé côté serveur avant chaque téléchargement
+
+---
+
+## 🌍 Déploiement
+
+### Variables d'environnement à mettre à jour
+
+```env
+CLIENT_URL=https://ton-domaine.com
+JWT_SECRET=une_chaine_tres_longue_et_aleatoire
+MONGODB_URI=mongodb+srv://...
+```
+
+### Points d'attention
+
+- Le dossier `uploads/` doit être persistant (volume Docker ou stockage objet type S3 en production)
+- Configurer un proxy inverse (Nginx / Caddy) pour servir frontend et backend sur le même domaine
+- Activer HTTPS pour que les cookies et liens de reset soient sécurisés
+
+---
+
+## 🤝 Contribuer
+
+Les contributions sont les bienvenues !
+
+1. Fork le dépôt
+2. Crée une branche : `git checkout -b feature/ma-feature`
+3. Commit tes changements : `git commit -m 'feat: ajout de ma feature'`
+4. Push : `git push origin feature/ma-feature`
+5. Ouvre une Pull Request
+
+---
+
+## 📄 Licence
+
+Ce projet est sous licence **MIT**. Voir le fichier [LICENSE](LICENSE) pour plus de détails.
+
+---
+
+<p align="center">Fait avec ❤️ par la communauté Papyrus 📚</p>
