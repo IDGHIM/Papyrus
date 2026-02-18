@@ -17,23 +17,50 @@ const PORT       = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:3000';
 
+// ─── DEBUG : affiche toutes les variables d'environnement importantes ─────────
+console.log('🔍 DEBUG ENV :');
+console.log('  PORT       :', process.env.PORT);
+console.log('  CLIENT_URL :', process.env.CLIENT_URL);
+console.log('  NODE_ENV   :', process.env.NODE_ENV);
+console.log('  MONGODB_URI:', process.env.MONGODB_URI ? '✅ défini' : '❌ manquant');
+console.log('  JWT_SECRET :', process.env.JWT_SECRET ? '✅ défini' : '❌ manquant');
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ─── Middleware ──────────────────────────────────────────────────────────────
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  CLIENT_URL,
+].filter(Boolean);
+
+console.log('🌐 Origines CORS autorisées :', allowedOrigins);
+
+app.use((req, res, next) => {
+  console.log(`📡 [${req.method}] ${req.path} | Origin: ${req.headers.origin || 'aucune'}`);
+  next();
+});
+
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'http://localhost:5173',
-    process.env.CLIENT_URL
-  ],
+  origin: (origin, callback) => {
+    // Autorise les requêtes sans origin (Postman, curl, mobile, etc.)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      console.log('✅ CORS autorisé pour :', origin);
+      return callback(null, true);
+    }
+
+    console.warn('❌ CORS bloqué pour :', origin);
+    console.warn('   Origines autorisées :', allowedOrigins);
+    callback(new Error(`CORS bloqué pour : ${origin}`));
+  },
   credentials: true
 }));
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // ─── Configuration Cloudinary ────────────────────────────────────────────────
-// Variables .env requises :
-//   CLOUDINARY_CLOUD_NAME=xxxxx
-//   CLOUDINARY_API_KEY=xxxxx
-//   CLOUDINARY_API_SECRET=xxxxx
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key:    process.env.CLOUDINARY_API_KEY,
@@ -44,7 +71,7 @@ const storage = new CloudinaryStorage({
   cloudinary,
   params: {
     folder:        'papyrus-courses',
-    resource_type: 'raw',   // obligatoire pour les PDFs
+    resource_type: 'raw',
     format:        'pdf',
   },
 });
@@ -55,17 +82,10 @@ const upload = multer({
     if (file.mimetype === 'application/pdf') cb(null, true);
     else cb(new Error('Seuls les fichiers PDF sont autorisés'));
   },
-  limits: { fileSize: 10 * 1024 * 1024 } // 10 Mo max
+  limits: { fileSize: 10 * 1024 * 1024 }
 });
-// ────────────────────────────────────────────────────────────────────────────
 
 // ─── Configuration Nodemailer ────────────────────────────────────────────────
-// Variables .env requises :
-//   EMAIL_HOST=smtp.gmail.com
-//   EMAIL_PORT=587
-//   EMAIL_USER=votre@email.com
-//   EMAIL_PASS=votre_mot_de_passe_application
-//   EMAIL_FROM="Papyrus <no-reply@papyrus.app>"
 const transporter = nodemailer.createTransport({
   host:   process.env.EMAIL_HOST || 'smtp.gmail.com',
   port:   parseInt(process.env.EMAIL_PORT) || 587,
@@ -80,7 +100,6 @@ transporter.verify((error) => {
   if (error) console.warn('⚠️  SMTP non configuré :', error.message);
   else       console.log('✅ SMTP prêt à envoyer des emails');
 });
-// ────────────────────────────────────────────────────────────────────────────
 
 // ─── Connexion MongoDB ───────────────────────────────────────────────────────
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/course-share', {
@@ -89,7 +108,6 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/course-sh
 })
 .then(() => console.log('✅ MongoDB connecté'))
 .catch(err => console.error('❌ Erreur MongoDB:', err));
-// ────────────────────────────────────────────────────────────────────────────
 
 // ═══════════════════════════════════════════════════════════════════
 // Schémas MongoDB
@@ -118,8 +136,8 @@ const courseSchema = new mongoose.Schema({
   description:   { type: String, default: '' },
   category:      { type: String, default: 'Autre' },
   fileName:      { type: String, required: true },
-  filePath:      { type: String, required: true }, // URL Cloudinary
-  cloudinaryId:  { type: String, default: '' },    // public_id Cloudinary (pour suppression)
+  filePath:      { type: String, required: true },
+  cloudinaryId:  { type: String, default: '' },
   fileSize:      { type: Number, required: true },
   owner:         { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   shared:        { type: Boolean, default: false },
@@ -223,7 +241,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     if (!user) return res.json(genericResponse);
 
     const resetToken  = crypto.randomBytes(32).toString('hex');
-    const expiresAt   = new Date(Date.now() + 7 * 60 * 1000); // 7 minutes
+    const expiresAt   = new Date(Date.now() + 7 * 60 * 1000);
 
     user.resetPasswordToken   = resetToken;
     user.resetPasswordExpires = expiresAt;
@@ -501,8 +519,8 @@ app.post('/api/courses', authenticateToken, upload.single('file'), async (req, r
       description:  description || '',
       category:     category || 'Autre',
       fileName:     req.file.originalname,
-      filePath:     req.file.path,       // URL Cloudinary (multer-storage-cloudinary la met dans path)
-      cloudinaryId: req.file.filename,   // public_id Cloudinary
+      filePath:     req.file.path,
+      cloudinaryId: req.file.filename,
       fileSize:     req.file.size,
       owner:        req.user.userId,
       shared:       shared === 'true',
@@ -657,14 +675,12 @@ app.patch('/api/courses/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// ─── Suppression : efface aussi le fichier sur Cloudinary ────────────────────
 app.delete('/api/courses/:id', authenticateToken, async (req, res) => {
   try {
     const course = await Course.findById(req.params.id);
     if (!course) return res.status(404).json({ error: 'Cours non trouvé' });
     if (course.owner.toString() !== req.user.userId) return res.status(403).json({ error: 'Accès non autorisé' });
 
-    // Supprime le fichier sur Cloudinary si on a son public_id
     if (course.cloudinaryId) {
       await cloudinary.uploader.destroy(course.cloudinaryId, { resource_type: 'raw' });
     }
@@ -678,7 +694,6 @@ app.delete('/api/courses/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// ─── Téléchargement : redirige vers l'URL Cloudinary ─────────────────────────
 app.get('/api/courses/:id/download', authenticateToken, async (req, res) => {
   try {
     const course = await Course.findById(req.params.id);
@@ -693,7 +708,7 @@ app.get('/api/courses/:id/download', authenticateToken, async (req, res) => {
 
     course.downloads += 1;
     await course.save();
-    res.redirect(course.filePath); // ← URL Cloudinary
+    res.redirect(course.filePath);
   } catch (error) {
     res.status(500).json({ error: 'Erreur lors du téléchargement', details: error.message });
   }
@@ -745,7 +760,6 @@ app.get('/api/courses/share/:token', async (req, res) => {
   }
 });
 
-// ─── Téléchargement public : redirige vers l'URL Cloudinary ──────────────────
 app.get('/api/courses/share/:token/download', async (req, res) => {
   try {
     const course = await Course.findOne({ shareToken: req.params.token });
@@ -753,7 +767,7 @@ app.get('/api/courses/share/:token/download', async (req, res) => {
 
     course.downloads += 1;
     await course.save();
-    res.redirect(course.filePath); // ← URL Cloudinary
+    res.redirect(course.filePath);
   } catch (error) {
     res.status(500).json({ error: 'Erreur lors du téléchargement', details: error.message });
   }
@@ -769,7 +783,13 @@ app.get('/api/categories', authenticateToken, async (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Serveur fonctionnel ✅' });
+  res.json({
+    status: 'OK',
+    message: 'Serveur fonctionnel ✅',
+    CLIENT_URL,
+    allowedOrigins,
+    NODE_ENV: process.env.NODE_ENV
+  });
 });
 
 app.listen(PORT, () => {
