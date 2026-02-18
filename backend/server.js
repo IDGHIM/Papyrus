@@ -1,44 +1,74 @@
 // server.js - Backend Node.js avec Express et MongoDB
 require('dotenv').config();
 
-const express = require('express');
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const multer = require('multer');
-const cors = require('cors');
-const path = require('path');
-const fs = require('fs');
-const crypto = require('crypto');
+const express    = require('express');
+const mongoose   = require('mongoose');
+const bcrypt     = require('bcryptjs');
+const jwt        = require('jsonwebtoken');
+const multer     = require('multer');
+const cors       = require('cors');
+const crypto     = require('crypto');
 const nodemailer = require('nodemailer');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
-const app = express();
-const PORT = process.env.PORT || 5000;
+const app        = express();
+const PORT       = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:3000';
 
-// Middleware
-app.use(cors());
+// ─── Middleware ──────────────────────────────────────────────────────────────
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    process.env.CLIENT_URL
+  ],
+  credentials: true
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-app.use('/uploads', express.static('uploads'));
 
-// Création du dossier uploads s'il n'existe pas
-if (!fs.existsSync('uploads')) {
-  fs.mkdirSync('uploads');
-}
+// ─── Configuration Cloudinary ────────────────────────────────────────────────
+// Variables .env requises :
+//   CLOUDINARY_CLOUD_NAME=xxxxx
+//   CLOUDINARY_API_KEY=xxxxx
+//   CLOUDINARY_API_SECRET=xxxxx
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder:        'papyrus-courses',
+    resource_type: 'raw',   // obligatoire pour les PDFs
+    format:        'pdf',
+  },
+});
+
+const upload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') cb(null, true);
+    else cb(new Error('Seuls les fichiers PDF sont autorisés'));
+  },
+  limits: { fileSize: 10 * 1024 * 1024 } // 10 Mo max
+});
+// ────────────────────────────────────────────────────────────────────────────
 
 // ─── Configuration Nodemailer ────────────────────────────────────────────────
-// Ajoutez ces variables dans votre fichier .env :
+// Variables .env requises :
 //   EMAIL_HOST=smtp.gmail.com
 //   EMAIL_PORT=587
 //   EMAIL_USER=votre@email.com
-//   EMAIL_PASS=votre_mot_de_passe_application   (mot de passe d'application Gmail)
+//   EMAIL_PASS=votre_mot_de_passe_application
 //   EMAIL_FROM="Papyrus <no-reply@papyrus.app>"
-//   CLIENT_URL=http://localhost:3000
 const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.EMAIL_PORT) || 587,
+  host:   process.env.EMAIL_HOST || 'smtp.gmail.com',
+  port:   parseInt(process.env.EMAIL_PORT) || 587,
   secure: false,
   auth: {
     user: process.env.EMAIL_USER,
@@ -47,103 +77,75 @@ const transporter = nodemailer.createTransport({
 });
 
 transporter.verify((error) => {
-  if (error) {
-    console.warn('⚠️  SMTP non configuré :', error.message);
-  } else {
-    console.log('✅ SMTP prêt à envoyer des emails');
-  }
+  if (error) console.warn('⚠️  SMTP non configuré :', error.message);
+  else       console.log('✅ SMTP prêt à envoyer des emails');
 });
 // ────────────────────────────────────────────────────────────────────────────
 
-// Configuration Multer pour l'upload de fichiers
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + '-' + file.originalname);
-  }
-});
-
-const upload = multer({
-  storage: storage,
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'application/pdf') {
-      cb(null, true);
-    } else {
-      cb(new Error('Seuls les fichiers PDF sont autorisés'));
-    }
-  },
-  limits: {
-    fileSize: 10 * 1024 * 1024
-  }
-});
-
-// Connexion MongoDB
+// ─── Connexion MongoDB ───────────────────────────────────────────────────────
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/course-share', {
-  useNewUrlParser: true,
+  useNewUrlParser:    true,
   useUnifiedTopology: true
 })
 .then(() => console.log('✅ MongoDB connecté'))
 .catch(err => console.error('❌ Erreur MongoDB:', err));
+// ────────────────────────────────────────────────────────────────────────────
 
 // ═══════════════════════════════════════════════════════════════════
 // Schémas MongoDB
 // ═══════════════════════════════════════════════════════════════════
 
 const userSchema = new mongoose.Schema({
-  username: { type: String, required: true, unique: true },
-  email: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
-  favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course' }],
-  // ─── Champs pour la réinitialisation du mot de passe ───────────
+  username:             { type: String, required: true, unique: true },
+  email:                { type: String, required: true, unique: true },
+  password:             { type: String, required: true },
+  favorites:            [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course' }],
   resetPasswordToken:   { type: String, default: null },
   resetPasswordExpires: { type: Date,   default: null },
-  // ────────────────────────────────────────────────────────────────
-  createdAt: { type: Date, default: Date.now }
+  createdAt:            { type: Date,   default: Date.now }
 });
 
 const commentSchema = new mongoose.Schema({
-  course: { type: mongoose.Schema.Types.ObjectId, ref: 'Course', required: true },
-  user:   { type: mongoose.Schema.Types.ObjectId, ref: 'User',   required: true },
-  text:   { type: String, required: true },
-  rating: { type: Number, min: 1, max: 5 },
+  course:    { type: mongoose.Schema.Types.ObjectId, ref: 'Course', required: true },
+  user:      { type: mongoose.Schema.Types.ObjectId, ref: 'User',   required: true },
+  text:      { type: String, required: true },
+  rating:    { type: Number, min: 1, max: 5 },
   createdAt: { type: Date, default: Date.now }
 });
 
 const courseSchema = new mongoose.Schema({
-  title:       { type: String, required: true },
-  description: { type: String, default: '' },
-  category:    { type: String, default: 'Autre' },
-  fileName:    { type: String, required: true },
-  filePath:    { type: String, required: true },
-  fileSize:    { type: Number, required: true },
-  owner:       { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  shared:      { type: Boolean, default: false },
-  shareToken:  { type: String, unique: true, sparse: true },
-  sharedWith:  [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  downloads:      { type: Number, default: 0 },
-  views:          { type: Number, default: 0 },
-  averageRating:  { type: Number, default: 0 },
-  ratingsCount:   { type: Number, default: 0 },
-  createdAt:  { type: Date, default: Date.now },
-  updatedAt:  { type: Date, default: Date.now }
+  title:         { type: String, required: true },
+  description:   { type: String, default: '' },
+  category:      { type: String, default: 'Autre' },
+  fileName:      { type: String, required: true },
+  filePath:      { type: String, required: true }, // URL Cloudinary
+  cloudinaryId:  { type: String, default: '' },    // public_id Cloudinary (pour suppression)
+  fileSize:      { type: Number, required: true },
+  owner:         { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  shared:        { type: Boolean, default: false },
+  shareToken:    { type: String, unique: true, sparse: true },
+  sharedWith:    [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  downloads:     { type: Number, default: 0 },
+  views:         { type: Number, default: 0 },
+  averageRating: { type: Number, default: 0 },
+  ratingsCount:  { type: Number, default: 0 },
+  createdAt:     { type: Date, default: Date.now },
+  updatedAt:     { type: Date, default: Date.now }
 });
 
 const User    = mongoose.model('User',    userSchema);
 const Comment = mongoose.model('Comment', commentSchema);
 const Course  = mongoose.model('Course',  courseSchema);
 
-// Helpers
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 function generateShareToken() {
   return crypto.randomBytes(16).toString('hex');
 }
 
-// Middleware d'authentification
+// ─── Middleware d'authentification ───────────────────────────────────────────
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const token      = authHeader && authHeader.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'Token manquant' });
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
@@ -205,21 +207,13 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════
-// ─── NOUVEAU : Mot de passe oublié / réinitialisation ────────────
+// Mot de passe oublié / réinitialisation
 // ═══════════════════════════════════════════════════════════════════
 
-/**
- * POST /api/auth/forgot-password
- * Génère un token de réinitialisation (valable 7 min) et envoie l'email.
- * Réponse générique pour ne pas révéler si l'email existe.
- */
 app.post('/api/auth/forgot-password', async (req, res) => {
   try {
     const { email } = req.body;
-
-    if (!email) {
-      return res.status(400).json({ error: 'Email requis' });
-    }
+    if (!email) return res.status(400).json({ error: 'Email requis' });
 
     const genericResponse = {
       message: 'Si cet email est associé à un compte, un lien de réinitialisation a été envoyé.'
@@ -228,9 +222,8 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) return res.json(genericResponse);
 
-    // Token sécurisé + expiration dans 7 minutes
-    const resetToken   = crypto.randomBytes(32).toString('hex');
-    const expiresAt    = new Date(Date.now() + 7 * 60 * 1000);
+    const resetToken  = crypto.randomBytes(32).toString('hex');
+    const expiresAt   = new Date(Date.now() + 7 * 60 * 1000); // 7 minutes
 
     user.resetPasswordToken   = resetToken;
     user.resetPasswordExpires = expiresAt;
@@ -239,8 +232,8 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     const resetLink = `${CLIENT_URL}/reset-password/${resetToken}`;
 
     const mailOptions = {
-      from: process.env.EMAIL_FROM || '"Papyrus 📚" <no-reply@papyrus.app>',
-      to: user.email,
+      from:    process.env.EMAIL_FROM || '"Papyrus 📚" <no-reply@papyrus.app>',
+      to:      user.email,
       subject: '🔒 Réinitialisation de ton mot de passe Papyrus',
       html: `
         <!DOCTYPE html>
@@ -251,43 +244,38 @@ app.post('/api/auth/forgot-password', async (req, res) => {
             <tr><td align="center">
               <table width="560" cellpadding="0" cellspacing="0"
                      style="background:#ffffff;border-radius:24px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-                <!-- Header -->
                 <tr>
                   <td style="background:linear-gradient(135deg,#4f46e5,#7c3aed);padding:40px 48px;text-align:center;">
                     <div style="font-size:48px;margin-bottom:8px;">📚</div>
-                    <h1 style="margin:0;color:#ffffff;font-size:28px;font-weight:800;letter-spacing:-0.5px;">Papyrus</h1>
+                    <h1 style="margin:0;color:#ffffff;font-size:28px;font-weight:800;">Papyrus</h1>
                     <p style="margin:8px 0 0;color:#c4b5fd;font-size:14px;">Ta bibliothèque de connaissances</p>
                   </td>
                 </tr>
-                <!-- Body -->
                 <tr>
                   <td style="padding:48px;">
                     <h2 style="margin:0 0 16px;color:#1f2937;font-size:22px;font-weight:700;">Réinitialise ton mot de passe 🔑</h2>
                     <p style="margin:0 0 16px;color:#6b7280;font-size:15px;line-height:1.6;">
                       Salut <strong style="color:#1f2937;">${user.username}</strong> ! 👋<br/>
-                      Tu as demandé à réinitialiser ton mot de passe. Clique sur le bouton ci-dessous pour en choisir un nouveau.
+                      Tu as demandé à réinitialiser ton mot de passe.
                     </p>
-                    <!-- Bandeau d'avertissement -->
                     <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 28px;">
                       <tr>
                         <td style="background:#fef3c7;border:1px solid #fde68a;border-radius:12px;padding:14px 16px;">
                           <p style="margin:0;color:#92400e;font-size:13px;font-weight:600;">
-                            ⏱️&nbsp; Ce lien est valable <strong>7 minutes</strong> seulement. Après ça, il ne fonctionnera plus.
+                            ⏱️ Ce lien est valable <strong>7 minutes</strong> seulement.
                           </p>
                         </td>
                       </tr>
                     </table>
-                    <!-- CTA -->
                     <div style="text-align:center;margin:0 0 32px;">
                       <a href="${resetLink}"
                          style="display:inline-block;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#ffffff;
-                                text-decoration:none;padding:16px 40px;border-radius:14px;font-size:16px;font-weight:700;
-                                box-shadow:0 4px 14px rgba(79,70,229,0.4);">
+                                text-decoration:none;padding:16px 40px;border-radius:14px;font-size:16px;font-weight:700;">
                         🔒 Réinitialiser mon mot de passe
                       </a>
                     </div>
                     <p style="margin:0 0 8px;color:#9ca3af;font-size:12px;text-align:center;">
-                      Si le bouton ne fonctionne pas, copie-colle ce lien dans ton navigateur :
+                      Si le bouton ne fonctionne pas, copie-colle ce lien :
                     </p>
                     <p style="margin:0 0 24px;word-break:break-all;color:#6b7280;font-size:11px;text-align:center;
                               background:#f9fafb;padding:10px;border-radius:8px;font-family:monospace;">
@@ -295,11 +283,10 @@ app.post('/api/auth/forgot-password', async (req, res) => {
                     </p>
                     <hr style="border:none;border-top:1px solid #f3f4f6;margin:0 0 20px;"/>
                     <p style="margin:0;color:#d1d5db;font-size:12px;text-align:center;">
-                      Si tu n'es pas à l'origine de cette demande, ignore cet email. Ton mot de passe ne changera pas. 🛡️
+                      Si tu n'es pas à l'origine de cette demande, ignore cet email. 🛡️
                     </p>
                   </td>
                 </tr>
-                <!-- Footer -->
                 <tr>
                   <td style="background:#f9fafb;padding:20px 48px;text-align:center;">
                     <p style="margin:0;color:#9ca3af;font-size:12px;">© ${new Date().getFullYear()} Papyrus · Fait avec ❤️</p>
@@ -311,11 +298,11 @@ app.post('/api/auth/forgot-password', async (req, res) => {
         </body>
         </html>
       `,
-      text: `Réinitialisation de mot de passe Papyrus\n\nSalut ${user.username},\n\nClique sur ce lien pour réinitialiser ton mot de passe (valable 7 minutes) :\n${resetLink}\n\nSi tu n'as pas fait cette demande, ignore cet email.`
+      text: `Salut ${user.username},\n\nRéinitialise ton mot de passe (valable 7 min) :\n${resetLink}\n\nSi tu n'as pas fait cette demande, ignore cet email.`
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`📧 Email de réinitialisation envoyé à ${user.email}`);
+    console.log(`📧 Email envoyé à ${user.email}`);
     res.json(genericResponse);
   } catch (error) {
     console.error('Erreur forgot-password:', error);
@@ -323,10 +310,6 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   }
 });
 
-/**
- * GET /api/auth/reset-password/:token
- * Vérifie si le token est valide et non expiré (appelé par le front avant d'afficher le formulaire).
- */
 app.get('/api/auth/reset-password/:token', async (req, res) => {
   try {
     const user = await User.findOne({
@@ -335,7 +318,7 @@ app.get('/api/auth/reset-password/:token', async (req, res) => {
     });
 
     if (!user) {
-      return res.status(400).json({ error: 'Lien invalide ou expiré. Refais une demande de réinitialisation.' });
+      return res.status(400).json({ error: 'Lien invalide ou expiré. Refais une demande.' });
     }
 
     const secondsLeft = Math.round((user.resetPasswordExpires - Date.now()) / 1000);
@@ -345,10 +328,6 @@ app.get('/api/auth/reset-password/:token', async (req, res) => {
   }
 });
 
-/**
- * POST /api/auth/reset-password/:token
- * Réinitialise le mot de passe si le token est valide.
- */
 app.post('/api/auth/reset-password/:token', async (req, res) => {
   try {
     const { password, confirmPassword } = req.body;
@@ -366,7 +345,7 @@ app.post('/api/auth/reset-password/:token', async (req, res) => {
     });
 
     if (!user) {
-      return res.status(400).json({ error: 'Lien invalide ou expiré. Refais une demande de réinitialisation.' });
+      return res.status(400).json({ error: 'Lien invalide ou expiré. Refais une demande.' });
     }
 
     user.password             = await bcrypt.hash(password, 10);
@@ -418,7 +397,7 @@ app.delete('/api/favorites/:courseId', authenticateToken, async (req, res) => {
 app.get('/api/favorites', authenticateToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).populate({
-      path: 'favorites',
+      path:     'favorites',
       populate: { path: 'owner', select: 'username email' }
     });
     res.json(user.favorites || []);
@@ -435,7 +414,6 @@ app.post('/api/courses/:courseId/comments', authenticateToken, async (req, res) 
   try {
     const { text, rating } = req.body;
     const course = await Course.findById(req.params.courseId);
-
     if (!course) return res.status(404).json({ error: 'Cours non trouvé' });
 
     const comment = new Comment({
@@ -456,8 +434,8 @@ app.post('/api/courses/:courseId/comments', authenticateToken, async (req, res) 
 
     const populatedComment = await Comment.findById(comment._id).populate('user', 'username');
     res.status(201).json({
-      message: 'Commentaire ajouté avec succès',
-      comment: populatedComment,
+      message:       'Commentaire ajouté avec succès',
+      comment:       populatedComment,
       averageRating: course.averageRating,
       ratingsCount:  course.ratingsCount
     });
@@ -492,9 +470,9 @@ app.delete('/api/comments/:commentId', authenticateToken, async (req, res) => {
       const comments = await Comment.find({ course: courseId, rating: { $exists: true, $ne: null } });
 
       if (comments.length > 0) {
-        const totalRating        = comments.reduce((sum, c) => sum + c.rating, 0);
-        course.averageRating     = totalRating / comments.length;
-        course.ratingsCount      = comments.length;
+        const totalRating    = comments.reduce((sum, c) => sum + c.rating, 0);
+        course.averageRating = totalRating / comments.length;
+        course.ratingsCount  = comments.length;
       } else {
         course.averageRating = 0;
         course.ratingsCount  = 0;
@@ -517,15 +495,17 @@ app.post('/api/courses', authenticateToken, upload.single('file'), async (req, r
     if (!req.file) return res.status(400).json({ error: 'Fichier manquant' });
 
     const { title, description, shared, category } = req.body;
+
     const course = new Course({
-      title:       title || req.file.originalname.replace('.pdf', ''),
-      description: description || '',
-      category:    category || 'Autre',
-      fileName:    req.file.originalname,
-      filePath:    req.file.path,
-      fileSize:    req.file.size,
-      owner:       req.user.userId,
-      shared:      shared === 'true',
+      title:        title || req.file.originalname.replace('.pdf', ''),
+      description:  description || '',
+      category:     category || 'Autre',
+      fileName:     req.file.originalname,
+      filePath:     req.file.path,       // URL Cloudinary (multer-storage-cloudinary la met dans path)
+      cloudinaryId: req.file.filename,   // public_id Cloudinary
+      fileSize:     req.file.size,
+      owner:        req.user.userId,
+      shared:       shared === 'true',
       averageRating: 0,
       ratingsCount:  0
     });
@@ -677,13 +657,18 @@ app.patch('/api/courses/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// ─── Suppression : efface aussi le fichier sur Cloudinary ────────────────────
 app.delete('/api/courses/:id', authenticateToken, async (req, res) => {
   try {
     const course = await Course.findById(req.params.id);
     if (!course) return res.status(404).json({ error: 'Cours non trouvé' });
     if (course.owner.toString() !== req.user.userId) return res.status(403).json({ error: 'Accès non autorisé' });
 
-    if (fs.existsSync(course.filePath)) fs.unlinkSync(course.filePath);
+    // Supprime le fichier sur Cloudinary si on a son public_id
+    if (course.cloudinaryId) {
+      await cloudinary.uploader.destroy(course.cloudinaryId, { resource_type: 'raw' });
+    }
+
     await Comment.deleteMany({ course: req.params.id });
     await Course.findByIdAndDelete(req.params.id);
 
@@ -693,6 +678,7 @@ app.delete('/api/courses/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// ─── Téléchargement : redirige vers l'URL Cloudinary ─────────────────────────
 app.get('/api/courses/:id/download', authenticateToken, async (req, res) => {
   try {
     const course = await Course.findById(req.params.id);
@@ -707,7 +693,7 @@ app.get('/api/courses/:id/download', authenticateToken, async (req, res) => {
 
     course.downloads += 1;
     await course.save();
-    res.download(course.filePath, course.fileName);
+    res.redirect(course.filePath); // ← URL Cloudinary
   } catch (error) {
     res.status(500).json({ error: 'Erreur lors du téléchargement', details: error.message });
   }
@@ -725,7 +711,7 @@ app.post('/api/courses/:id/share-link', authenticateToken, async (req, res) => {
       await course.save();
     }
 
-    const shareLink = `${req.protocol}://${req.get('host')}/share/${course.shareToken}`;
+    const shareLink = `${CLIENT_URL}/share/${course.shareToken}`;
     res.json({ message: 'Lien de partage généré', shareLink, shareToken: course.shareToken });
   } catch (error) {
     res.status(500).json({ error: 'Erreur lors de la génération du lien', details: error.message });
@@ -759,6 +745,7 @@ app.get('/api/courses/share/:token', async (req, res) => {
   }
 });
 
+// ─── Téléchargement public : redirige vers l'URL Cloudinary ──────────────────
 app.get('/api/courses/share/:token/download', async (req, res) => {
   try {
     const course = await Course.findOne({ shareToken: req.params.token });
@@ -766,7 +753,7 @@ app.get('/api/courses/share/:token/download', async (req, res) => {
 
     course.downloads += 1;
     await course.save();
-    res.download(course.filePath, course.fileName);
+    res.redirect(course.filePath); // ← URL Cloudinary
   } catch (error) {
     res.status(500).json({ error: 'Erreur lors du téléchargement', details: error.message });
   }
@@ -782,7 +769,7 @@ app.get('/api/categories', authenticateToken, async (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Serveur fonctionnel' });
+  res.json({ status: 'OK', message: 'Serveur fonctionnel ✅' });
 });
 
 app.listen(PORT, () => {
