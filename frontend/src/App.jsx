@@ -1,16 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Upload, FileText, Share2, Download, Trash2, Search, Eye, LogOut, User, Lock, Mail, X, Copy, Link as LinkIcon, ArrowLeft, Clock, Star, BookOpen, Sparkles, Zap, Heart, MessageSquare } from 'lucide-react';
 
-const API_URL  = import.meta.env.VITE_API_URL  || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export default function CourseShareApp() {
-  // États d'authentification
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(true);
   const [authMode, setAuthMode] = useState('login');
 
-  // États de l'application
   const [activeTab, setActiveTab] = useState('my-courses');
   const [courses, setCourses] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -20,44 +18,36 @@ export default function CourseShareApp() {
   const [uploadProgress, setUploadProgress] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // États pour le modal d'upload
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadForm, setUploadForm] = useState({ title: '', category: 'Autre', file: null });
 
-  // États pour les favoris
   const [favorites, setFavorites] = useState([]);
   const [showFavorites, setShowFavorites] = useState(false);
 
-  // États pour les commentaires et évaluations
   const [comments, setComments] = useState([]);
   const [showComments, setShowComments] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [newRating, setNewRating] = useState(0);
   const [currentCourseForComments, setCurrentCourseForComments] = useState(null);
 
-  // Liste des catégories
   const categories = [
     'Toutes', 'Mathématiques', 'Physique', 'Chimie', 'Informatique',
     'Histoire', 'Géographie', 'Philosophie', 'Langues', 'Économie',
     'Droit', 'Médecine', 'Biologie', 'Littérature', 'Arts', 'Sport', 'Autre'
   ];
 
-  // États pour le partage de lien
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareLink, setShareLink] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
   const [currentShareCourse, setCurrentShareCourse] = useState(null);
 
-  // États pour la page publique
   const [isPublicView, setIsPublicView] = useState(false);
   const [publicCourse, setPublicCourse] = useState(null);
   const [publicLoading, setPublicLoading] = useState(false);
   const [publicError, setPublicError] = useState(null);
 
-  // Formulaire d'authentification
   const [authForm, setAuthForm] = useState({ username: '', email: '', password: '', confirmPassword: '' });
 
-  // États pour mot de passe oublié / réinitialisation
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
@@ -80,17 +70,15 @@ export default function CourseShareApp() {
     const resetMatch = path.match(/^\/reset-password\/([a-f0-9]+)$/);
 
     if (shareMatch) {
-      const token = shareMatch[1];
       setIsPublicView(true);
-      loadPublicCourse(token);
+      loadPublicCourse(shareMatch[1]);
     } else if (resetMatch) {
-      const token = resetMatch[1];
-      setResetToken(token);
+      setResetToken(resetMatch[1]);
       setShowResetModal(true);
       setShowAuthModal(false);
-      verifyResetToken(token);
+      verifyResetToken(resetMatch[1]);
     } else {
-      const token    = localStorage.getItem('token');
+      const token = localStorage.getItem('token');
       const userData = localStorage.getItem('user');
       if (token && userData) {
         setIsAuthenticated(true);
@@ -103,12 +91,9 @@ export default function CourseShareApp() {
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated && !isPublicView) {
-      loadCourses(activeTab);
-    }
+    if (isAuthenticated && !isPublicView) loadCourses(activeTab);
   }, [activeTab, sortBy, categoryFilter]);
 
-  // Compte à rebours pour le token de reset
   useEffect(() => {
     if (resetSecondsLeft === null || resetSecondsLeft <= 0) return;
     const interval = setInterval(() => {
@@ -125,24 +110,15 @@ export default function CourseShareApp() {
     return () => clearInterval(interval);
   }, [resetSecondsLeft]);
 
-  // ─── Helper : résout l'URL du PDF ────────────────────────────────────────
-  // filePath peut être soit une URL Cloudinary complète, soit un chemin relatif
   const resolvePdfUrl = (filePath) => {
     if (!filePath) return '';
-    // Si c'est déjà une URL absolue (Cloudinary, http, https…)
-    if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
-      return filePath;
-    }
-    // Sinon, c'est un chemin relatif servi par le backend
+    if (filePath.startsWith('http://') || filePath.startsWith('https://')) return filePath;
     const BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:5000';
     return `${BASE_URL}/${filePath}`;
   };
 
-  // ─── Helper : URL pour l'iframe (Google Docs Viewer en fallback) ──────────
   const getPdfViewerUrl = (filePath) => {
     const url = resolvePdfUrl(filePath);
-    // Pour les fichiers Cloudinary (raw), on passe par Google Docs Viewer
-    // pour contourner les problèmes de CORS / Content-Type
     if (url.includes('cloudinary.com')) {
       return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
     }
@@ -155,8 +131,7 @@ export default function CourseShareApp() {
     try {
       const response = await fetch(`${API_URL}/courses/share/${token}`);
       if (!response.ok) throw new Error('Cours non trouvé ou lien invalide');
-      const data = await response.json();
-      setPublicCourse(data);
+      setPublicCourse(await response.json());
     } catch (error) {
       setPublicError(error.message);
     } finally {
@@ -169,13 +144,13 @@ export default function CourseShareApp() {
       const response = await fetch(`${API_URL}/courses/share/${token}/download`);
       if (!response.ok) throw new Error('Erreur lors du téléchargement');
       const blob = await response.blob();
-      const url  = window.URL.createObjectURL(blob);
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href     = url;
+      link.href = url;
       link.download = fileName;
       link.click();
       window.URL.revokeObjectURL(url);
-    } catch (error) {
+    } catch {
       alert('Erreur lors du téléchargement');
     }
   };
@@ -184,7 +159,7 @@ export default function CourseShareApp() {
     setResetTokenValid(null);
     try {
       const response = await fetch(`${API_URL}/auth/reset-password/${token}`);
-      const data     = await response.json();
+      const data = await response.json();
       if (!response.ok) {
         setResetTokenValid(false);
         setResetError(data.error || 'Lien invalide ou expiré.');
@@ -193,7 +168,7 @@ export default function CourseShareApp() {
         setResetUsername(data.username);
         setResetSecondsLeft(data.secondsLeft);
       }
-    } catch (error) {
+    } catch {
       setResetTokenValid(false);
       setResetError('Erreur de connexion au serveur.');
     }
@@ -206,9 +181,9 @@ export default function CourseShareApp() {
     setForgotMessage('');
     try {
       const response = await fetch(`${API_URL}/auth/forgot-password`, {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ email: forgotEmail })
+        body: JSON.stringify({ email: forgotEmail })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Erreur serveur');
@@ -227,9 +202,9 @@ export default function CourseShareApp() {
     setResetMessage('');
     try {
       const response = await fetch(`${API_URL}/auth/reset-password/${resetToken}`, {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ password: resetForm.password, confirmPassword: resetForm.confirmPassword })
+        body: JSON.stringify({ password: resetForm.password, confirmPassword: resetForm.confirmPassword })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Erreur serveur');
@@ -259,7 +234,7 @@ export default function CourseShareApp() {
     setLoading(true);
     try {
       const endpoint = authMode === 'login' ? '/auth/login' : '/auth/register';
-      const body     = authMode === 'login'
+      const body = authMode === 'login'
         ? { email: authForm.email, password: authForm.password }
         : { username: authForm.username, email: authForm.email, password: authForm.password };
 
@@ -270,9 +245,9 @@ export default function CourseShareApp() {
       }
 
       const response = await fetch(`${API_URL}${endpoint}`, {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(body)
+        body: JSON.stringify(body)
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Erreur d'authentification");
@@ -304,9 +279,9 @@ export default function CourseShareApp() {
 
   const loadCourses = async (tab = activeTab) => {
     try {
-      const token  = localStorage.getItem('token');
+      const token = localStorage.getItem('token');
       let endpoint = '';
-      let params   = new URLSearchParams();
+      const params = new URLSearchParams();
 
       if (searchTerm) params.append('search', searchTerm);
       if (categoryFilter && categoryFilter !== 'Toutes') params.append('category', categoryFilter);
@@ -321,41 +296,38 @@ export default function CourseShareApp() {
         default: endpoint = '/courses';
       }
 
-      const url      = `${API_URL}${endpoint}${params.toString() ? '?' + params.toString() : ''}`;
+      const url = `${API_URL}${endpoint}${params.toString() ? '?' + params.toString() : ''}`;
       const response = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-
       if (!response.ok) throw new Error('Erreur lors du chargement des cours');
-      const data = await response.json();
-      setCourses(data);
-    } catch (error) {
+      setCourses(await response.json());
+    } catch {
       alert('Erreur lors du chargement des cours');
     }
   };
 
   const loadFavorites = async () => {
     try {
-      const token    = localStorage.getItem('token');
+      const token = localStorage.getItem('token');
       const response = await fetch(`${API_URL}/favorites`, { headers: { 'Authorization': `Bearer ${token}` } });
-      if (!response.ok) throw new Error('Erreur lors du chargement des favoris');
-      const data = await response.json();
-      setFavorites(data);
-    } catch (error) {
-      console.error('Erreur:', error);
+      if (!response.ok) throw new Error();
+      setFavorites(await response.json());
+    } catch {
+      console.error('Erreur chargement favoris');
     }
   };
 
   const toggleFavorite = async (courseId) => {
     try {
-      const token      = localStorage.getItem('token');
-      const isFav      = favorites.some(fav => fav._id === courseId);
-      const response   = await fetch(`${API_URL}/favorites/${courseId}`, {
-        method:  isFav ? 'DELETE' : 'POST',
+      const token = localStorage.getItem('token');
+      const isFav = favorites.some(fav => fav._id === courseId);
+      const response = await fetch(`${API_URL}/favorites/${courseId}`, {
+        method: isFav ? 'DELETE' : 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (!response.ok) throw new Error('Erreur lors de la gestion des favoris');
+      if (!response.ok) throw new Error();
       await loadFavorites();
       await loadCourses();
-    } catch (error) {
+    } catch {
       alert('Erreur lors de la gestion des favoris');
     }
   };
@@ -365,11 +337,10 @@ export default function CourseShareApp() {
   const loadComments = async (courseId) => {
     try {
       const response = await fetch(`${API_URL}/courses/${courseId}/comments`);
-      if (!response.ok) throw new Error('Erreur lors du chargement des commentaires');
-      const data = await response.json();
-      setComments(data);
-    } catch (error) {
-      console.error('Erreur:', error);
+      if (!response.ok) throw new Error();
+      setComments(await response.json());
+    } catch {
+      console.error('Erreur chargement commentaires');
     }
   };
 
@@ -385,18 +356,18 @@ export default function CourseShareApp() {
       return;
     }
     try {
-      const token    = localStorage.getItem('token');
+      const token = localStorage.getItem('token');
       const response = await fetch(`${API_URL}/courses/${currentCourseForComments._id}/comments`, {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body:    JSON.stringify({ text: newComment, rating: newRating > 0 ? newRating : null })
+        body: JSON.stringify({ text: newComment, rating: newRating > 0 ? newRating : null })
       });
-      if (!response.ok) throw new Error("Erreur lors de l'ajout du commentaire");
+      if (!response.ok) throw new Error();
       setNewComment('');
       setNewRating(0);
       await loadComments(currentCourseForComments._id);
       await loadCourses();
-    } catch (error) {
+    } catch {
       alert("Erreur lors de l'ajout du commentaire");
     }
   };
@@ -404,15 +375,15 @@ export default function CourseShareApp() {
   const deleteComment = async (commentId) => {
     if (!confirm('Voulez-vous vraiment supprimer ce commentaire ?')) return;
     try {
-      const token    = localStorage.getItem('token');
+      const token = localStorage.getItem('token');
       const response = await fetch(`${API_URL}/comments/${commentId}`, {
-        method:  'DELETE',
+        method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (!response.ok) throw new Error('Erreur lors de la suppression du commentaire');
+      if (!response.ok) throw new Error();
       await loadComments(currentCourseForComments._id);
       await loadCourses();
-    } catch (error) {
+    } catch {
       alert('Erreur lors de la suppression du commentaire');
     }
   };
@@ -427,7 +398,7 @@ export default function CourseShareApp() {
       alert('Le fichier est trop volumineux. Taille maximale : 10 Mo');
       return;
     }
-    setUploadForm({ ...uploadForm, file: file, title: file.name.replace('.pdf', '') });
+    setUploadForm({ ...uploadForm, file, title: file.name.replace('.pdf', '') });
     setShowUploadModal(true);
     event.target.value = '';
   };
@@ -437,23 +408,23 @@ export default function CourseShareApp() {
     setUploadProgress(true);
     try {
       const formData = new FormData();
-      formData.append('file',     uploadForm.file);
-      formData.append('title',    uploadForm.title);
+      formData.append('file', uploadForm.file);
+      formData.append('title', uploadForm.title);
       formData.append('category', uploadForm.category);
-      formData.append('shared',   'false');
+      formData.append('shared', 'false');
 
-      const token    = localStorage.getItem('token');
+      const token = localStorage.getItem('token');
       const response = await fetch(`${API_URL}/courses`, {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
-        body:    formData
+        body: formData
       });
-      if (!response.ok) throw new Error("Erreur lors de l'upload");
+      if (!response.ok) throw new Error();
       await loadCourses();
       setShowUploadModal(false);
       setUploadForm({ title: '', category: 'Autre', file: null });
       alert('Cours ajouté avec succès !');
-    } catch (error) {
+    } catch {
       alert("Erreur lors de l'upload du fichier");
     } finally {
       setUploadProgress(false);
@@ -462,33 +433,33 @@ export default function CourseShareApp() {
 
   const toggleShare = async (course) => {
     try {
-      const token    = localStorage.getItem('token');
+      const token = localStorage.getItem('token');
       const response = await fetch(`${API_URL}/courses/${course._id}`, {
-        method:  'PATCH',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body:    JSON.stringify({ shared: !course.shared })
+        body: JSON.stringify({ shared: !course.shared })
       });
-      if (!response.ok) throw new Error('Erreur lors du partage');
+      if (!response.ok) throw new Error();
       await loadCourses();
-    } catch (error) {
+    } catch {
       alert('Erreur lors du partage du cours');
     }
   };
 
   const generateShareLink = async (course) => {
     try {
-      const token    = localStorage.getItem('token');
+      const token = localStorage.getItem('token');
       const response = await fetch(`${API_URL}/courses/${course._id}/share-link`, {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (!response.ok) throw new Error('Erreur lors de la génération du lien');
+      if (!response.ok) throw new Error();
       const data = await response.json();
       setShareLink(`${window.location.origin}/share/${data.shareToken}`);
       setCurrentShareCourse(course);
       setShowShareModal(true);
       await loadCourses();
-    } catch (error) {
+    } catch {
       alert('Erreur lors de la génération du lien de partage');
     }
   };
@@ -497,18 +468,18 @@ export default function CourseShareApp() {
     if (!currentShareCourse) return;
     if (!confirm('Voulez-vous vraiment révoquer ce lien de partage ?')) return;
     try {
-      const token    = localStorage.getItem('token');
+      const token = localStorage.getItem('token');
       const response = await fetch(`${API_URL}/courses/${currentShareCourse._id}/share-link`, {
-        method:  'DELETE',
+        method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (!response.ok) throw new Error('Erreur lors de la révocation du lien');
+      if (!response.ok) throw new Error();
       setShowShareModal(false);
       setShareLink('');
       setCurrentShareCourse(null);
       await loadCourses();
       alert('Lien de partage révoqué avec succès');
-    } catch (error) {
+    } catch {
       alert('Erreur lors de la révocation du lien');
     }
   };
@@ -522,34 +493,34 @@ export default function CourseShareApp() {
   const deleteCourse = async (courseId) => {
     if (!confirm('Voulez-vous vraiment supprimer ce cours ?')) return;
     try {
-      const token    = localStorage.getItem('token');
+      const token = localStorage.getItem('token');
       const response = await fetch(`${API_URL}/courses/${courseId}`, {
-        method:  'DELETE',
+        method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (!response.ok) throw new Error('Erreur lors de la suppression');
+      if (!response.ok) throw new Error();
       await loadCourses();
       if (selectedCourse?._id === courseId) setSelectedCourse(null);
-    } catch (error) {
+    } catch {
       alert('Erreur lors de la suppression du cours');
     }
   };
 
   const downloadPDF = async (courseId, fileName) => {
     try {
-      const token    = localStorage.getItem('token');
+      const token = localStorage.getItem('token');
       const response = await fetch(`${API_URL}/courses/${courseId}/download`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (!response.ok) throw new Error('Erreur lors du téléchargement');
+      if (!response.ok) throw new Error();
       const blob = await response.blob();
-      const url  = window.URL.createObjectURL(blob);
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href     = url;
+      link.href = url;
       link.download = fileName;
       link.click();
       window.URL.revokeObjectURL(url);
-    } catch (error) {
+    } catch {
       alert('Erreur lors du téléchargement');
     }
   };
@@ -559,18 +530,14 @@ export default function CourseShareApp() {
     setTimeout(() => loadCourses(), 300);
   };
 
-  const filteredCourses = courses;
-
   const formatFileSize = (bytes) => {
-    if (bytes < 1024)          return bytes + ' B';
-    if (bytes < 1024 * 1024)   return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
-  const formatDate = (isoDate) => {
-    const date = new Date(isoDate);
-    return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  };
+  const formatDate = (isoDate) =>
+    new Date(isoDate).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
   const isOwner = (course) => course.owner._id === user?.id || course.owner === user?.id;
 
@@ -599,10 +566,10 @@ export default function CourseShareApp() {
   const getCategoryIcon = (category) => {
     const icons = {
       'Mathématiques': '📐', 'Physique': '⚛️',  'Chimie': '🧪',
-      'Informatique':  '💻', 'Histoire': '📜',   'Géographie': '🌍',
-      'Philosophie':   '🤔', 'Langues':  '🗣️',  'Économie': '💰',
-      'Droit':         '⚖️', 'Médecine': '🏥',  'Biologie': '🧬',
-      'Littérature':   '📚', 'Arts':     '🎨',   'Sport': '⚽',
+      'Informatique':  '💻', 'Histoire': '📜',  'Géographie': '🌍',
+      'Philosophie':   '🤔', 'Langues':  '🗣️', 'Économie': '💰',
+      'Droit':         '⚖️', 'Médecine': '🏥', 'Biologie': '🧬',
+      'Littérature':   '📚', 'Arts':     '🎨',  'Sport': '⚽',
       'Autre':         '📄'
     };
     return icons[category] || '📄';
@@ -620,17 +587,15 @@ export default function CourseShareApp() {
     </div>
   );
 
-  // ═══════════════════════════════════════════════════════════════════
-  // Vue publique pour les liens partagés
-  // ═══════════════════════════════════════════════════════════════════
+  // ─── Vue publique ──────────────────────────────────────────────────────────
 
   if (isPublicView) {
     if (publicLoading) {
       return (
-        <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center p-4">
+        <div className="page-wrapper flex items-center justify-center p-4">
           <div className="text-center">
             <div className="relative">
-              <div className="w-20 h-20 border-4 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-6"></div>
+              <div className="w-20 h-20 border-4 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-6" />
               <Sparkles className="w-10 h-10 text-yellow-300 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 animate-pulse" />
             </div>
             <p className="text-white text-xl font-semibold animate-pulse">Chargement du cours...</p>
@@ -641,14 +606,14 @@ export default function CourseShareApp() {
 
     if (publicError || !publicCourse) {
       return (
-        <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center p-4">
+        <div className="page-wrapper flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full text-center transform hover:scale-105 transition-transform">
             <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-red-500 to-pink-500 rounded-full mb-6 shadow-lg">
               <X className="w-10 h-10 text-white" />
             </div>
             <h2 className="text-3xl font-black text-gray-800 mb-3 bg-gradient-to-r from-red-600 to-pink-600 bg-clip-text text-transparent">Oups ! 😕</h2>
             <p className="text-gray-600 mb-8 text-lg">{publicError || 'Le lien de partage est invalide ou a été révoqué.'}</p>
-            <button onClick={() => window.location.href = '/'} className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-8 py-4 rounded-2xl font-bold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1 flex items-center gap-2 mx-auto">
+            <button onClick={() => window.location.href = '/'} className="btn-primary mx-auto">
               <ArrowLeft className="w-5 h-5" />Retour à l'accueil
             </button>
           </div>
@@ -657,37 +622,41 @@ export default function CourseShareApp() {
     }
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500">
+      <div className="page-wrapper">
         <div className="max-w-6xl mx-auto px-4 py-8">
-          <div className="bg-white rounded-3xl shadow-2xl p-6 mb-8 transform hover:scale-[1.02] transition-transform">
-            <div className="flex items-center justify-between flex-wrap gap-4">
+          {/* Header public */}
+          <div className="card-hover mb-8">
+            <div className="public-header-inner">
               <div className="flex items-center gap-4">
                 <div className="bg-gradient-to-br from-indigo-600 to-purple-600 p-4 rounded-2xl shadow-lg">
                   <BookOpen className="w-10 h-10 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-4xl font-black bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">Papyrus 📚</h1>
+                  <h1 className="app-title">Papyrus 📚</h1>
                   <p className="text-purple-600 font-semibold">Cours partagé avec amour ❤️</p>
                 </div>
               </div>
-              <button onClick={() => window.location.href = '/'} className="flex items-center gap-2 bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 px-6 py-3 rounded-2xl hover:from-gray-200 hover:to-gray-300 transition-all font-semibold shadow-lg hover:shadow-xl">
+              <button onClick={() => window.location.href = '/'} className="btn-neutral">
                 <ArrowLeft className="w-5 h-5" />Accueil
               </button>
             </div>
           </div>
 
-          <div className="bg-white rounded-3xl shadow-2xl p-8 mb-6 transform hover:scale-[1.01] transition-transform">
-            <div className="flex items-start justify-between mb-6 flex-wrap gap-4">
+          {/* Détail du cours */}
+          <div className="card-lg mb-6 hover:scale-[1.01] transition-transform">
+            <div className="course-detail-top mb-6">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-4">
                   <span className="text-5xl">{getCategoryIcon(publicCourse.category)}</span>
                   <h2 className="text-4xl font-black text-gray-800">{publicCourse.title}</h2>
                 </div>
                 <div className="flex items-center gap-2 mb-4 flex-wrap">
-                  <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2 rounded-full font-bold flex items-center gap-2 shadow-md">
+                  <div className="badge-user">
                     <User className="w-4 h-4" />{publicCourse.owner.username}
                   </div>
-                  <div className={`${getCategoryColor(publicCourse.category)} px-4 py-2 rounded-full font-bold shadow-md`}>{publicCourse.category || 'Autre'}</div>
+                  <div className={`${getCategoryColor(publicCourse.category)} px-4 py-2 rounded-full font-bold shadow-md`}>
+                    {publicCourse.category || 'Autre'}
+                  </div>
                   {publicCourse.averageRating > 0 && (
                     <div className="bg-gradient-to-r from-yellow-400 to-orange-400 text-white px-4 py-2 rounded-full font-bold flex items-center gap-2 shadow-md">
                       <Star className="w-4 h-4 fill-white" />{publicCourse.averageRating.toFixed(1)} ({publicCourse.ratingsCount})
@@ -695,33 +664,36 @@ export default function CourseShareApp() {
                   )}
                 </div>
                 {publicCourse.description && <p className="text-gray-700 mb-4 text-lg">{publicCourse.description}</p>}
-                <div className="flex items-center gap-6 text-sm text-gray-600 flex-wrap">
-                  <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-full"><FileText className="w-5 h-5 text-blue-600" /><span className="font-semibold">{formatFileSize(publicCourse.fileSize)}</span></div>
-                  <div className="flex items-center gap-2 bg-green-50 px-4 py-2 rounded-full"><Eye className="w-5 h-5 text-green-600" /><span className="font-semibold">{publicCourse.views} vues</span></div>
-                  <div className="flex items-center gap-2 bg-purple-50 px-4 py-2 rounded-full"><Download className="w-5 h-5 text-purple-600" /><span className="font-semibold">{publicCourse.downloads} téléchargements</span></div>
-                  <div className="flex items-center gap-2 bg-orange-50 px-4 py-2 rounded-full"><Clock className="w-5 h-5 text-orange-600" /><span className="font-semibold">{formatDate(publicCourse.createdAt)}</span></div>
+                <div className="course-stats">
+                  <div className="badge-stat bg-blue-50"><FileText className="w-5 h-5 text-blue-600" /><span className="font-semibold">{formatFileSize(publicCourse.fileSize)}</span></div>
+                  <div className="badge-stat bg-green-50"><Eye className="w-5 h-5 text-green-600" /><span className="font-semibold">{publicCourse.views} vues</span></div>
+                  <div className="badge-stat bg-purple-50"><Download className="w-5 h-5 text-purple-600" /><span className="font-semibold">{publicCourse.downloads} téléchargements</span></div>
+                  <div className="badge-stat bg-orange-50"><Clock className="w-5 h-5 text-orange-600" /><span className="font-semibold">{formatDate(publicCourse.createdAt)}</span></div>
                 </div>
               </div>
-              <button onClick={() => downloadPublicPDF(publicCourse.shareToken, publicCourse.fileName)} className="flex items-center gap-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-8 py-4 rounded-2xl hover:from-green-600 hover:to-emerald-600 transition-all shadow-lg hover:shadow-xl font-bold text-lg transform hover:-translate-y-1">
+              <button
+                onClick={() => downloadPublicPDF(publicCourse.shareToken, publicCourse.fileName)}
+                className="btn-success text-lg px-8 py-4"
+              >
                 <Download className="w-6 h-6" />Télécharger
               </button>
             </div>
 
-            {/* ── FIXED: iframe utilise getPdfViewerUrl() ── */}
             <div className="border-4 border-gray-200 rounded-3xl overflow-hidden bg-gray-100 shadow-inner">
               <iframe
                 src={getPdfViewerUrl(publicCourse.filePath)}
-                className="w-full h-[800px] border-0"
+                className="pdf-viewer-public"
                 title={publicCourse.title}
               />
             </div>
           </div>
 
-          <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 rounded-3xl shadow-2xl p-10 text-center text-white transform hover:scale-[1.02] transition-transform">
+          {/* CTA rejoindre */}
+          <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 rounded-3xl shadow-2xl p-10 text-center text-white hover:scale-[1.02] transition-transform">
             <div className="flex justify-center mb-4"><Sparkles className="w-16 h-16 text-yellow-300 animate-bounce" /></div>
             <h3 className="text-4xl font-black mb-4">Tu kiffes ce contenu ? 🔥</h3>
             <p className="text-xl mb-8 text-purple-100">Rejoins la communauté Papyrus et partage tes propres cours ! C'est gratuit et ça prend 30 secondes ⚡</p>
-            <button onClick={() => window.location.href = '/'} className="bg-white text-purple-600 px-10 py-5 rounded-2xl font-black text-lg hover:bg-gray-100 transition-all shadow-2xl hover:shadow-3xl transform hover:-translate-y-2 inline-flex items-center gap-3">
+            <button onClick={() => window.location.href = '/'} className="bg-white text-purple-600 px-10 py-5 rounded-2xl font-black text-lg hover:bg-gray-100 transition-all shadow-2xl transform hover:-translate-y-2 inline-flex items-center gap-3">
               <Zap className="w-6 h-6" />Rejoindre Papyrus<Zap className="w-6 h-6" />
             </button>
           </div>
@@ -730,42 +702,36 @@ export default function CourseShareApp() {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════
-  // Page de réinitialisation du mot de passe
-  // ═══════════════════════════════════════════════════════════════════
+  // ─── Page reset mot de passe ───────────────────────────────────────────────
 
   if (showResetModal) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center p-4">
-        <div className="bg-white rounded-3xl shadow-2xl p-10 w-full max-w-md transform hover:scale-[1.02] transition-transform">
+      <div className="page-wrapper flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl shadow-2xl p-10 w-full max-w-md hover:scale-[1.02] transition-transform">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-3xl mb-6 shadow-xl">
+            <div className="app-logo-wrap">
               <BookOpen className="w-10 h-10 text-white" />
             </div>
-            <h1 className="text-4xl font-black mb-2 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">Papyrus 📚</h1>
+            <h1 className="app-title">Papyrus 📚</h1>
             <p className="text-gray-600 text-lg font-semibold">Nouveau mot de passe 🔒</p>
           </div>
 
           {resetTokenValid === null && (
             <div className="text-center py-8">
-              <div className="w-12 h-12 border-4 border-purple-300 border-t-purple-600 rounded-full animate-spin mx-auto mb-4"></div>
+              <div className="spinner-lg mx-auto mb-4" />
               <p className="text-gray-600 font-semibold">Vérification du lien...</p>
             </div>
           )}
 
           {resetTokenValid === false && (
             <div className="text-center">
-              <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-6 mb-6">
+              <div className="alert-error mb-6">
                 <p className="text-red-700 font-bold text-lg mb-2">❌ Lien invalide ou expiré</p>
                 <p className="text-red-600 text-sm">{resetError}</p>
               </div>
               <button
-                onClick={() => {
-                  setShowResetModal(false);
-                  setShowForgotModal(true);
-                  window.history.pushState({}, '', '/');
-                }}
-                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-4 rounded-2xl font-black text-lg hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1"
+                onClick={() => { setShowResetModal(false); setShowForgotModal(true); window.history.pushState({}, '', '/'); }}
+                className="btn-full"
               >
                 Refaire une demande 🔄
               </button>
@@ -775,10 +741,10 @@ export default function CourseShareApp() {
           {resetTokenValid === true && !resetMessage && (
             <form onSubmit={handleResetPassword} className="space-y-5">
               {resetUsername && (
-                <div className="bg-purple-50 border-2 border-purple-200 rounded-2xl p-4 text-center">
+                <div className="alert-info text-center">
                   <p className="text-purple-700 font-bold">Salut <span className="text-purple-900">{resetUsername}</span> ! 👋</p>
                   <p className="text-purple-600 text-sm mt-1">Choisis un nouveau mot de passe</p>
-                  {resetSecondsLeft !== null && resetSecondsLeft > 0 && (
+                  {resetSecondsLeft > 0 && (
                     <p className="text-orange-600 font-black text-sm mt-2">
                       ⏱️ Expire dans : <span className="font-mono text-lg">{formatCountdown(resetSecondsLeft)}</span>
                     </p>
@@ -789,62 +755,46 @@ export default function CourseShareApp() {
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Nouveau mot de passe 🔑</label>
                 <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-purple-500 w-5 h-5" />
-                  <input
-                    type="password"
-                    value={resetForm.password}
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-purple-500 w-5 h-5" />
+                  <input type="password" value={resetForm.password}
                     onChange={(e) => setResetForm({ ...resetForm, password: e.target.value })}
-                    className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-purple-300 focus:border-purple-500 font-semibold transition-all"
-                    placeholder="Au moins 6 caractères"
-                    required
-                    minLength={6}
-                  />
+                    className="input-with-icon" placeholder="Au moins 6 caractères" required minLength={6} />
                 </div>
               </div>
 
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Confirme le mot de passe 🔐</label>
                 <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-purple-500 w-5 h-5" />
-                  <input
-                    type="password"
-                    value={resetForm.confirmPassword}
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-purple-500 w-5 h-5" />
+                  <input type="password" value={resetForm.confirmPassword}
                     onChange={(e) => setResetForm({ ...resetForm, confirmPassword: e.target.value })}
-                    className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-purple-300 focus:border-purple-500 font-semibold transition-all"
-                    placeholder="••••••••"
-                    required
-                  />
+                    className="input-with-icon" placeholder="••••••••" required />
                 </div>
               </div>
 
               {resetError && (
-                <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4">
+                <div className="alert-error">
                   <p className="text-red-700 font-semibold text-sm">❌ {resetError}</p>
                 </div>
               )}
 
-              <button
-                type="submit"
-                disabled={resetLoading}
-                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-5 rounded-2xl font-black text-lg hover:from-indigo-700 hover:to-purple-700 transition-all transform hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
-              >
-                {resetLoading ? (
-                  <><div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin"></div>En cours...</>
-                ) : (
-                  <><Zap className="w-5 h-5" />Changer le mot de passe<Zap className="w-5 h-5" /></>
-                )}
+              <button type="submit" disabled={resetLoading} className="btn-full disabled:opacity-50 disabled:cursor-not-allowed">
+                {resetLoading
+                  ? <><div className="spinner" />En cours...</>
+                  : <><Zap className="w-5 h-5" />Changer le mot de passe<Zap className="w-5 h-5" /></>
+                }
               </button>
             </form>
           )}
 
           {resetMessage && (
             <div className="text-center">
-              <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-6 mb-6">
+              <div className="alert-success mb-6">
                 <p className="text-green-700 font-black text-xl mb-2">✅ Succès !</p>
                 <p className="text-green-600 font-semibold">{resetMessage}</p>
                 <p className="text-gray-500 text-sm mt-2">Redirection vers la connexion...</p>
               </div>
-              <div className="w-8 h-8 border-4 border-green-300 border-t-green-600 rounded-full animate-spin mx-auto"></div>
+              <div className="w-8 h-8 border-4 border-green-300 border-t-green-600 rounded-full animate-spin mx-auto" />
             </div>
           )}
         </div>
@@ -852,19 +802,17 @@ export default function CourseShareApp() {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════
-  // Modal d'authentification (login / register)
-  // ═══════════════════════════════════════════════════════════════════
+  // ─── Modal auth ────────────────────────────────────────────────────────────
 
   if (showAuthModal) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center p-4">
-        <div className="bg-white rounded-3xl shadow-2xl p-10 w-full max-w-md transform hover:scale-[1.02] transition-transform">
+      <div className="page-wrapper flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl shadow-2xl p-10 w-full max-w-md hover:scale-[1.02] transition-transform">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-3xl mb-6 shadow-xl transform hover:rotate-6 transition-transform">
+            <div className="app-logo-wrap hover:rotate-6 transition-transform">
               <BookOpen className="w-10 h-10 text-white" />
             </div>
-            <h1 className="text-5xl font-black mb-3 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">Papyrus 📚</h1>
+            <h1 className="app-title">Papyrus 📚</h1>
             <p className="text-gray-600 text-lg font-semibold">
               {authMode === 'login' ? 'Bon retour parmi nous ! 👋' : 'Rejoins la communauté ! 🚀'}
             </p>
@@ -875,10 +823,10 @@ export default function CourseShareApp() {
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Nom d'utilisateur ✨</label>
                 <div className="relative">
-                  <User className="absolute left-4 top-1/2 transform -translate-y-1/2 text-purple-500 w-5 h-5" />
-                  <input type="text" value={authForm.username} onChange={(e) => setAuthForm({ ...authForm, username: e.target.value })}
-                    className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-purple-300 focus:border-purple-500 font-semibold transition-all"
-                    placeholder="ton_super_pseudo" required />
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-purple-500 w-5 h-5" />
+                  <input type="text" value={authForm.username}
+                    onChange={(e) => setAuthForm({ ...authForm, username: e.target.value })}
+                    className="input-with-icon" placeholder="ton_super_pseudo" required />
                 </div>
               </div>
             )}
@@ -886,20 +834,20 @@ export default function CourseShareApp() {
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">Email 📧</label>
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 text-purple-500 w-5 h-5" />
-                <input type="email" value={authForm.email} onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
-                  className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-purple-300 focus:border-purple-500 font-semibold transition-all"
-                  placeholder="email@exemple.com" required />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-purple-500 w-5 h-5" />
+                <input type="email" value={authForm.email}
+                  onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
+                  className="input-with-icon" placeholder="email@exemple.com" required />
               </div>
             </div>
 
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">Mot de passe 🔒</label>
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-purple-500 w-5 h-5" />
-                <input type="password" value={authForm.password} onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
-                  className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-purple-300 focus:border-purple-500 font-semibold transition-all"
-                  placeholder="••••••••" required />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-purple-500 w-5 h-5" />
+                <input type="password" value={authForm.password}
+                  onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
+                  className="input-with-icon" placeholder="••••••••" required />
               </div>
             </div>
 
@@ -907,30 +855,26 @@ export default function CourseShareApp() {
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Confirme ton mot de passe 🔐</label>
                 <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-purple-500 w-5 h-5" />
-                  <input type="password" value={authForm.confirmPassword} onChange={(e) => setAuthForm({ ...authForm, confirmPassword: e.target.value })}
-                    className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-purple-300 focus:border-purple-500 font-semibold transition-all"
-                    placeholder="••••••••" required />
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-purple-500 w-5 h-5" />
+                  <input type="password" value={authForm.confirmPassword}
+                    onChange={(e) => setAuthForm({ ...authForm, confirmPassword: e.target.value })}
+                    className="input-with-icon" placeholder="••••••••" required />
                 </div>
               </div>
             )}
 
-            <button type="submit" disabled={loading}
-              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-5 rounded-2xl font-black text-lg hover:from-indigo-700 hover:to-purple-700 transition-all transform hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl flex items-center justify-center gap-2">
-              {loading ? (
-                <><div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin"></div>Chargement...</>
-              ) : (
-                <><Zap className="w-5 h-5" />{authMode === 'login' ? 'Se connecter' : "S'inscrire"}<Zap className="w-5 h-5" /></>
-              )}
+            <button type="submit" disabled={loading} className="btn-full disabled:opacity-50 disabled:cursor-not-allowed">
+              {loading
+                ? <><div className="spinner" />Chargement...</>
+                : <><Zap className="w-5 h-5" />{authMode === 'login' ? 'Se connecter' : "S'inscrire"}<Zap className="w-5 h-5" /></>
+              }
             </button>
           </form>
 
           {authMode === 'login' && (
             <div className="mt-4 text-center">
-              <button
-                onClick={() => setShowForgotModal(true)}
-                className="text-gray-500 hover:text-purple-600 transition-colors font-semibold text-sm hover:underline"
-              >
+              <button onClick={() => setShowForgotModal(true)}
+                className="text-gray-500 hover:text-purple-600 transition-colors font-semibold text-sm hover:underline">
                 Mot de passe oublié ? 🤔
               </button>
             </div>
@@ -939,23 +883,21 @@ export default function CourseShareApp() {
           <div className="mt-6 text-center">
             <button
               onClick={() => { setAuthMode(authMode === 'login' ? 'register' : 'login'); setAuthForm({ username: '', email: '', password: '', confirmPassword: '' }); }}
-              className="text-purple-600 hover:text-purple-800 transition-colors font-bold text-lg hover:underline"
-            >
+              className="text-purple-600 hover:text-purple-800 transition-colors font-bold text-lg hover:underline">
               {authMode === 'login' ? "Pas encore de compte ? Inscris-toi ! 🎉" : 'Déjà un compte ? Connecte-toi ! 👍'}
             </button>
           </div>
         </div>
 
-        {/* Modal "Mot de passe oublié" */}
+        {/* Modal mot de passe oublié */}
         {showForgotModal && (
-          <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-            <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-black text-gray-800">Mot de passe oublié 🔑</h2>
+          <div className="modal-backdrop">
+            <div className="modal-box">
+              <div className="modal-header">
+                <h2 className="modal-title">Mot de passe oublié 🔑</h2>
                 <button
                   onClick={() => { setShowForgotModal(false); setForgotEmail(''); setForgotMessage(''); setForgotError(''); }}
-                  className="text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-2xl p-2 transition-all"
-                >
+                  className="modal-close-btn">
                   <X className="w-7 h-7" />
                 </button>
               </div>
@@ -969,34 +911,22 @@ export default function CourseShareApp() {
                     <div>
                       <label className="block text-sm font-bold text-gray-700 mb-2">Ton email 📧</label>
                       <div className="relative">
-                        <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 text-purple-500 w-5 h-5" />
-                        <input
-                          type="email"
-                          value={forgotEmail}
+                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-purple-500 w-5 h-5" />
+                        <input type="email" value={forgotEmail}
                           onChange={(e) => setForgotEmail(e.target.value)}
-                          className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-purple-300 focus:border-purple-500 font-semibold transition-all"
-                          placeholder="email@exemple.com"
-                          required
-                        />
+                          className="input-with-icon" placeholder="email@exemple.com" required />
                       </div>
                     </div>
-
                     {forgotError && (
-                      <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4">
+                      <div className="alert-error">
                         <p className="text-red-700 font-semibold text-sm">❌ {forgotError}</p>
                       </div>
                     )}
-
-                    <button
-                      type="submit"
-                      disabled={forgotLoading}
-                      className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-5 rounded-2xl font-black text-lg hover:from-indigo-700 hover:to-purple-700 transition-all transform hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
-                    >
-                      {forgotLoading ? (
-                        <><div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin"></div>Envoi en cours...</>
-                      ) : (
-                        <><Mail className="w-5 h-5" />Envoyer le lien<Zap className="w-5 h-5" /></>
-                      )}
+                    <button type="submit" disabled={forgotLoading} className="btn-full disabled:opacity-50 disabled:cursor-not-allowed">
+                      {forgotLoading
+                        ? <><div className="spinner" />Envoi en cours...</>
+                        : <><Mail className="w-5 h-5" />Envoyer le lien<Zap className="w-5 h-5" /></>
+                      }
                     </button>
                   </form>
                 </>
@@ -1012,8 +942,7 @@ export default function CourseShareApp() {
                   </div>
                   <button
                     onClick={() => { setShowForgotModal(false); setForgotEmail(''); setForgotMessage(''); setForgotError(''); }}
-                    className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-4 rounded-2xl font-black hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1"
-                  >
+                    className="btn-full">
                     Retour à la connexion 👍
                   </button>
                 </div>
@@ -1025,44 +954,43 @@ export default function CourseShareApp() {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════
-  // Application principale (utilisateur connecté)
-  // ═══════════════════════════════════════════════════════════════════
+  // ─── App principale ────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500">
-      <div className="max-w-7xl mx-auto px-4 py-6">
+    <div className="page-wrapper">
+      <div className="content-container">
+
         {/* Header */}
-        <div className="bg-white rounded-3xl shadow-2xl p-6 mb-6 transform hover:scale-[1.01] transition-transform">
-          <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="card-hover mb-6">
+          <div className="header-inner">
             <div className="flex items-center gap-4">
-              <div className="bg-gradient-to-br from-indigo-600 to-purple-600 p-4 rounded-2xl shadow-lg transform hover:rotate-12 transition-transform">
+              <div className="bg-gradient-to-br from-indigo-600 to-purple-600 p-4 rounded-2xl shadow-lg hover:rotate-12 transition-transform">
                 <BookOpen className="w-10 h-10 text-white" />
               </div>
               <div>
-                <h1 className="text-4xl font-black bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">Papyrus 📚</h1>
+                <h1 className="app-title">Papyrus 📚</h1>
                 <p className="text-purple-600 font-bold">Ta bibliothèque de connaissances</p>
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              <button onClick={() => setShowFavorites(!showFavorites)}
-                className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all ${showFavorites ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white' : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800'}`}>
+            <div className="header-actions">
+              <button
+                onClick={() => setShowFavorites(!showFavorites)}
+                className={`btn ${showFavorites ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white' : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800'}`}>
                 <Heart className={`w-5 h-5 ${showFavorites ? 'fill-white' : ''}`} />Favoris ({favorites.length})
               </button>
               <div className="text-right bg-gradient-to-r from-purple-100 to-pink-100 px-6 py-3 rounded-2xl">
                 <p className="text-sm text-purple-600 font-semibold">Connecté en tant que</p>
                 <p className="font-black text-purple-800 text-lg">{user?.username} 👤</p>
               </div>
-              <button onClick={handleLogout}
-                className="flex items-center gap-2 bg-gradient-to-r from-red-500 to-pink-500 text-white px-6 py-3 rounded-2xl hover:from-red-600 hover:to-pink-600 transition-all font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1">
+              <button onClick={handleLogout} className="btn-danger">
                 <LogOut className="w-5 h-5" />Déconnexion
               </button>
             </div>
           </div>
         </div>
 
-        {/* Tabs Navigation */}
-        <div className="bg-white rounded-3xl shadow-xl p-3 mb-6">
+        {/* Tabs */}
+        <div className="tab-bar">
           <div className="grid grid-cols-3 gap-3">
             {[
               { key: 'my-courses', icon: <FileText className="w-6 h-6" />, label: 'Mes Cours' },
@@ -1070,17 +998,17 @@ export default function CourseShareApp() {
               { key: 'shared',     icon: <Share2 className="w-6 h-6" />,   label: 'Partagés' }
             ].map(({ key, icon, label }) => (
               <button key={key} onClick={() => { setActiveTab(key); setShowFavorites(false); }}
-                className={`py-4 px-6 rounded-2xl font-black transition-all transform hover:-translate-y-1 ${activeTab === key ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg scale-105' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                className={activeTab === key ? 'tab-btn-active' : 'tab-btn'}>
                 <div className="flex items-center justify-center gap-2 text-lg">{icon}{label}</div>
               </button>
             ))}
           </div>
         </div>
 
-        {/* Upload Section */}
+        {/* Zone upload */}
         {activeTab === 'my-courses' && !showFavorites && (
-          <div className="bg-white rounded-3xl shadow-xl p-8 mb-6 transform hover:scale-[1.01] transition-transform">
-            <label className="flex flex-col items-center justify-center border-4 border-dashed border-purple-300 rounded-3xl p-12 cursor-pointer hover:border-purple-500 hover:bg-purple-50 transition-all group">
+          <div className="card-hover p-8 mb-6">
+            <label className="drop-zone group">
               <div className="bg-gradient-to-br from-purple-500 to-pink-500 p-6 rounded-3xl mb-4 group-hover:scale-110 transition-transform shadow-lg">
                 <Upload className="w-12 h-12 text-white" />
               </div>
@@ -1091,22 +1019,23 @@ export default function CourseShareApp() {
           </div>
         )}
 
-        {/* Search and Sort Bar */}
+        {/* Barre de recherche */}
         {!showFavorites && (
-          <div className="bg-white rounded-3xl shadow-xl p-5 mb-6">
-            <div className="flex gap-4 flex-wrap">
-              <div className="relative flex-1 min-w-[250px]">
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-purple-500 w-6 h-6" />
-                <input type="text" placeholder="Cherche un cours... 🔍" value={searchTerm} onChange={(e) => handleSearch(e.target.value)}
-                  className="w-full pl-14 pr-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-800 placeholder-gray-400 focus:ring-4 focus:ring-purple-300 focus:border-purple-500 outline-none font-semibold text-lg transition-all" />
+          <div className="card p-4 sm:p-5 mb-4 sm:mb-6">
+            <div className="search-bar">
+              <div className="search-input-wrap">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-purple-500 w-6 h-6" />
+                <input type="text" placeholder="Cherche un cours... 🔍" value={searchTerm}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  className="input-field pl-14 text-lg" />
               </div>
               <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}
-                className="px-6 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-800 focus:ring-4 focus:ring-purple-300 outline-none cursor-pointer font-bold text-lg transition-all">
+                className="input-field w-auto px-6 cursor-pointer font-bold text-lg">
                 {categories.map(cat => <option key={cat} value={cat}>{getCategoryIcon(cat)} {cat}</option>)}
               </select>
               {activeTab === 'discover' && (
                 <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}
-                  className="px-6 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-800 focus:ring-4 focus:ring-purple-300 outline-none cursor-pointer font-bold text-lg transition-all">
+                  className="input-field w-auto px-6 cursor-pointer font-bold text-lg">
                   <option value="recent">🆕 Plus récents</option>
                   <option value="popular">🔥 Plus populaires</option>
                   <option value="downloads">⬇️ Plus téléchargés</option>
@@ -1117,9 +1046,9 @@ export default function CourseShareApp() {
           </div>
         )}
 
-        {/* Course Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {(showFavorites ? favorites : filteredCourses).length === 0 ? (
+        {/* Grille de cours */}
+        <div className="courses-grid">
+          {(showFavorites ? favorites : courses).length === 0 ? (
             <div className="col-span-full text-center py-20 bg-white rounded-3xl shadow-xl">
               <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full mb-6 shadow-lg">
                 {showFavorites ? <Heart className="w-12 h-12 text-white" /> : <FileText className="w-12 h-12 text-white" />}
@@ -1133,73 +1062,83 @@ export default function CourseShareApp() {
               </p>
             </div>
           ) : (
-            (showFavorites ? favorites : filteredCourses).map((course) => (
-              <div key={course._id} className="bg-white rounded-3xl shadow-xl hover:shadow-2xl transition-all p-6 group hover:-translate-y-2 transform">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-3xl">{getCategoryIcon(course.category)}</span>
-                      <h3 className="text-xl font-black text-gray-800 group-hover:text-purple-600 transition-colors line-clamp-2">{course.title}</h3>
+            (showFavorites ? favorites : courses).map((course) => (
+              <div key={course._id} className="course-card bg-white rounded-3xl shadow-xl hover:shadow-2xl transition-all p-4 sm:p-6 group hover:-translate-y-2 transform">
+
+                {/* ── Header : titre + badge public/privé ── */}
+                <div className="course-card-header flex items-start justify-between gap-2 mb-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-3 min-w-0">
+                      <span className="text-2xl flex-shrink-0">{getCategoryIcon(course.category)}</span>
+                      <h3 className="course-card-title text-base sm:text-xl font-black text-gray-800 group-hover:text-purple-600 transition-colors">
+                        {course.title}
+                      </h3>
                     </div>
                     <div className="flex items-center gap-2 mb-3 flex-wrap">
-                      <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-md">
-                        <User className="w-3 h-3" />{course.owner.username}
+                      <div className="badge-user min-w-0 max-w-[140px]">
+                        <User className="w-3 h-3 flex-shrink-0" />
+                        <span className="truncate">{course.owner.username}</span>
                       </div>
                       <button onClick={(e) => { e.stopPropagation(); toggleFavorite(course._id); }}
-                        className={`p-2 rounded-full transition-all ${isFavorite(course._id) ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-md' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>
+                        className={`p-2 rounded-full flex-shrink-0 transition-all ${isFavorite(course._id) ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-md' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>
                         <Heart className={`w-4 h-4 ${isFavorite(course._id) ? 'fill-white' : ''}`} />
                       </button>
                     </div>
-                    <div className="flex items-center gap-2 mb-3">
+                    <div className="flex items-center gap-2 mb-3 flex-wrap">
                       <span className={`${getCategoryColor(course.category)} px-3 py-1 rounded-full text-xs font-bold shadow-md`}>{course.category || 'Autre'}</span>
                     </div>
                     {course.averageRating > 0 && (
-                      <div className="flex items-center gap-2 mb-3">
+                      <div className="flex items-center gap-2 mb-3 flex-wrap">
                         {renderStars(Math.round(course.averageRating))}
                         <span className="text-sm font-bold text-gray-700">{course.averageRating.toFixed(1)} ({course.ratingsCount})</span>
                       </div>
                     )}
-                    <div className="flex items-center gap-3 text-xs text-gray-600 font-semibold">
+                    <div className="flex items-center gap-2 flex-wrap text-xs text-gray-600 font-semibold">
                       <span className="bg-blue-50 px-2 py-1 rounded-lg">{formatFileSize(course.fileSize)}</span>
                       <span>•</span>
                       <span className="bg-orange-50 px-2 py-1 rounded-lg">{formatDate(course.createdAt)}</span>
                     </div>
                   </div>
-                  <div className={`px-3 py-2 rounded-full text-xs font-black shadow-md ${course.shared ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' : 'bg-gradient-to-r from-gray-400 to-gray-500 text-white'}`}>
-                    {course.shared ? '🌍 Public' : '🔒 Privé'}
+
+                  {/* Badge public/privé : emoji seul sur mobile, texte sur sm+ */}
+                  <div className={`course-card-status flex-shrink-0 px-2 py-1 sm:px-3 sm:py-2 rounded-full text-xs font-black shadow-md ${course.shared ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' : 'bg-gradient-to-r from-gray-400 to-gray-500 text-white'}`}>
+                    {course.shared ? '🌍' : '🔒'}
+                    <span className="hidden sm:inline ml-1">{course.shared ? 'Public' : 'Privé'}</span>
                   </div>
                 </div>
 
+                {/* ── Lien actif ── */}
                 {course.shareToken && isOwner(course) && (
-                  <div className="mb-3 p-3 bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-2xl flex items-center gap-2">
-                    <LinkIcon className="w-5 h-5 text-blue-600" />
-                    <span className="text-sm text-blue-700 font-bold">🔗 Lien actif</span>
+                  <div className="mb-3 p-3 bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-2xl flex items-center gap-2 overflow-hidden">
+                    <LinkIcon className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                    <span className="text-sm text-blue-700 font-bold truncate">🔗 Lien actif</span>
                   </div>
                 )}
 
-                <div className="flex items-center gap-3 text-sm text-gray-600 mb-4 font-semibold">
-                  <div className="flex items-center gap-1 bg-green-50 px-3 py-1 rounded-full"><Eye className="w-4 h-4 text-green-600" /><span>{course.views}</span></div>
-                  <div className="flex items-center gap-1 bg-purple-50 px-3 py-1 rounded-full"><Download className="w-4 h-4 text-purple-600" /><span>{course.downloads}</span></div>
+                {/* ── Stats ── */}
+                <div className="course-card-stats flex items-center text-sm text-gray-600 mb-4 font-semibold">
+                  <div className="badge-stat bg-green-50"><Eye className="w-4 h-4 text-green-600" /><span>{course.views}</span></div>
+                  <div className="badge-stat bg-purple-50 ml-2"><Download className="w-4 h-4 text-purple-600" /><span>{course.downloads}</span></div>
                   <button onClick={(e) => { e.stopPropagation(); openComments(course); }}
-                    className="flex items-center gap-1 bg-blue-50 px-3 py-1 rounded-full hover:bg-blue-100 transition-colors">
-                    <MessageSquare className="w-4 h-4 text-blue-600" /><span>Commentaires</span>
+                    className="badge-stat bg-blue-50 hover:bg-blue-100 transition-colors cursor-pointer ml-2">
+                    <MessageSquare className="w-4 h-4 text-blue-600" />
+                    <span className="hidden sm:inline">Commentaires</span>
+                    <span className="sm:hidden">Avis</span>
                   </button>
                 </div>
 
-                <div className="space-y-3">
+                {/* ── Boutons d'action ── */}
+                <div className="course-card-actions space-y-2">
                   <div className="flex gap-2">
-                    <button onClick={() => setSelectedCourse(course)}
-                      className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-2xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl font-bold transform hover:-translate-y-1">
-                      <Eye className="w-5 h-5" />Voir
+                    <button onClick={() => setSelectedCourse(course)} className="btn-primary flex-1 py-2.5 text-sm">
+                      <Eye className="w-4 h-4" /><span>Voir</span>
                     </button>
-                    <button onClick={() => downloadPDF(course._id, course.fileName)}
-                      className="flex items-center justify-center gap-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-4 py-3 rounded-2xl hover:from-green-600 hover:to-emerald-600 transition-all font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1">
-                      <Download className="w-5 h-5" />
+                    <button onClick={() => downloadPDF(course._id, course.fileName)} className="btn-success flex-shrink-0 px-3 py-2.5">
+                      <Download className="w-4 h-4" />
                     </button>
                     {isOwner(course) && (
-                      <button onClick={() => deleteCourse(course._id)}
-                        className="flex items-center justify-center gap-2 bg-gradient-to-r from-red-500 to-pink-500 text-white px-4 py-3 rounded-2xl hover:from-red-600 hover:to-pink-600 transition-all font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1">
-                        <Trash2 className="w-5 h-5" />
+                      <button onClick={() => deleteCourse(course._id)} className="btn-danger flex-shrink-0 px-3 py-2.5">
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     )}
                   </div>
@@ -1207,44 +1146,50 @@ export default function CourseShareApp() {
                   {isOwner(course) && (
                     <div className="flex gap-2">
                       <button onClick={() => toggleShare(course)}
-                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-2xl transition-all font-black shadow-md hover:shadow-lg transform hover:-translate-y-1 ${course.shared ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white' : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white'}`}>
-                        {course.shared ? <><X className="w-5 h-5" /><span>Rendre Privé</span></> : <><Share2 className="w-5 h-5" /><span>Rendre Public</span></>}
+                        className={`btn flex-1 py-2.5 text-sm font-black ${course.shared ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600' : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600'}`}>
+                        {course.shared
+                          ? <><X className="w-4 h-4 flex-shrink-0" /><span className="truncate">Rendre Privé</span></>
+                          : <><Share2 className="w-4 h-4 flex-shrink-0" /><span className="truncate">Rendre Public</span></>}
                       </button>
                       <button onClick={() => generateShareLink(course)}
-                        className="flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-3 rounded-2xl hover:from-purple-600 hover:to-pink-600 transition-all font-bold shadow-md hover:shadow-lg transform hover:-translate-y-1">
-                        <LinkIcon className="w-5 h-5" /><span>Lien</span>
+                        className="btn bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 flex-shrink-0 px-3 py-2.5">
+                        <LinkIcon className="w-4 h-4" />
                       </button>
                     </div>
                   )}
                 </div>
+
               </div>
             ))
           )}
         </div>
 
-        {/* Upload Modal */}
+        {/* Modal upload */}
         {showUploadModal && (
-          <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-            <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-3xl font-black text-gray-800">Ajoute ton cours 📚</h2>
+          <div className="modal-backdrop">
+            <div className="modal-box">
+              <div className="modal-header">
+                <h2 className="modal-title text-3xl">Ajoute ton cours 📚</h2>
                 <button onClick={() => { setShowUploadModal(false); setUploadForm({ title: '', category: 'Autre', file: null }); }}
-                  className="text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-2xl p-2 transition-all">
+                  className="modal-close-btn">
                   <X className="w-7 h-7" />
                 </button>
               </div>
               <div className="space-y-5">
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">Titre du cours ✨</label>
-                  <input type="text" value={uploadForm.title} onChange={(e) => setUploadForm({ ...uploadForm, title: e.target.value })}
-                    className="w-full px-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-800 placeholder-gray-400 focus:ring-4 focus:ring-purple-300 outline-none font-semibold transition-all"
-                    placeholder="Ex: Cours de mathématiques" />
+                  <input type="text" value={uploadForm.title}
+                    onChange={(e) => setUploadForm({ ...uploadForm, title: e.target.value })}
+                    className="input-field" placeholder="Ex: Cours de mathématiques" />
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">Catégorie 🏷️</label>
-                  <select value={uploadForm.category} onChange={(e) => setUploadForm({ ...uploadForm, category: e.target.value })}
-                    className="w-full px-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-800 focus:ring-4 focus:ring-purple-300 outline-none cursor-pointer font-bold transition-all">
-                    {categories.filter(cat => cat !== 'Toutes').map(cat => <option key={cat} value={cat}>{getCategoryIcon(cat)} {cat}</option>)}
+                  <select value={uploadForm.category}
+                    onChange={(e) => setUploadForm({ ...uploadForm, category: e.target.value })}
+                    className="input-field cursor-pointer font-bold">
+                    {categories.filter(cat => cat !== 'Toutes').map(cat => (
+                      <option key={cat} value={cat}>{getCategoryIcon(cat)} {cat}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-2xl p-4">
@@ -1252,26 +1197,25 @@ export default function CourseShareApp() {
                   <p className="text-xs text-gray-600 mt-2 font-semibold">💾 {uploadForm.file && formatFileSize(uploadForm.file.size)}</p>
                 </div>
                 <button onClick={handleFileUpload} disabled={uploadProgress || !uploadForm.title}
-                  className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-5 rounded-2xl font-black text-lg hover:from-indigo-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl flex items-center justify-center gap-3 transform hover:-translate-y-1">
-                  {uploadProgress ? (
-                    <><div className="animate-spin rounded-full h-6 w-6 border-3 border-white/30 border-t-white"></div>Téléchargement...</>
-                  ) : (
-                    <><Upload className="w-6 h-6" />Ajouter le cours<Zap className="w-6 h-6" /></>
-                  )}
+                  className="btn-full disabled:opacity-50 disabled:cursor-not-allowed">
+                  {uploadProgress
+                    ? <><div className="spinner" />Téléchargement...</>
+                    : <><Upload className="w-6 h-6" />Ajouter le cours<Zap className="w-6 h-6" /></>
+                  }
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* Share Link Modal */}
+        {/* Modal lien de partage */}
         {showShareModal && (
-          <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-            <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-3xl font-black text-gray-800">Lien de partage 🔗</h2>
+          <div className="modal-backdrop">
+            <div className="modal-box">
+              <div className="modal-header">
+                <h2 className="modal-title text-3xl">Lien de partage 🔗</h2>
                 <button onClick={() => { setShowShareModal(false); setShareLink(''); setCopiedLink(false); setCurrentShareCourse(null); }}
-                  className="text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-2xl p-2 transition-all">
+                  className="modal-close-btn">
                   <X className="w-7 h-7" />
                 </button>
               </div>
@@ -1283,12 +1227,10 @@ export default function CourseShareApp() {
                 <p className="text-sm text-gray-700 break-all font-mono font-semibold">{shareLink}</p>
               </div>
               <div className="flex gap-3">
-                <button onClick={copyToClipboard}
-                  className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-4 rounded-2xl font-black hover:from-indigo-700 hover:to-purple-700 transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:-translate-y-1">
+                <button onClick={copyToClipboard} className="btn-primary flex-1 py-4">
                   {copiedLink ? <><span className="text-xl">✓</span>Copié !</> : <><Copy className="w-5 h-5" />Copier le lien</>}
                 </button>
-                <button onClick={revokeShareLink}
-                  className="bg-gradient-to-r from-red-500 to-pink-500 text-white px-6 py-4 rounded-2xl font-black hover:from-red-600 hover:to-pink-600 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1" title="Révoquer le lien">
+                <button onClick={revokeShareLink} className="btn-danger px-6 py-4" title="Révoquer le lien">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -1297,22 +1239,22 @@ export default function CourseShareApp() {
           </div>
         )}
 
-        {/* Comments Modal */}
+        {/* Modal commentaires */}
         {showComments && currentCourseForComments && (
-          <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-            <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col">
+          <div className="modal-backdrop">
+            <div className="modal-box-lg">
               <div className="flex items-center justify-between p-6 border-b-2 border-gray-200">
                 <div className="flex-1">
-                  <h2 className="text-2xl font-black text-gray-800">Commentaires & Évaluations 💬</h2>
+                  <h2 className="modal-title">Commentaires & Évaluations 💬</h2>
                   <p className="text-sm text-purple-600 font-bold">{currentCourseForComments.title}</p>
                 </div>
                 <button onClick={() => { setShowComments(false); setCurrentCourseForComments(null); setComments([]); setNewComment(''); setNewRating(0); }}
-                  className="text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-2xl p-3 transition-all">
+                  className="modal-close-btn">
                   <X className="w-6 h-6" />
                 </button>
               </div>
               <div className="flex-1 overflow-auto p-6">
-                <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-6 mb-6 border-2 border-purple-200">
+                <div className="alert-info mb-6">
                   <h3 className="font-black text-gray-800 mb-4 text-lg">Ajouter une évaluation ⭐</h3>
                   <div className="mb-4">
                     <label className="block text-sm font-bold text-gray-700 mb-2">Ta note</label>
@@ -1321,14 +1263,13 @@ export default function CourseShareApp() {
                   <div className="mb-4">
                     <label className="block text-sm font-bold text-gray-700 mb-2">Ton commentaire</label>
                     <textarea value={newComment} onChange={(e) => setNewComment(e.target.value)}
-                      className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-2xl text-gray-800 placeholder-gray-400 focus:ring-4 focus:ring-purple-300 outline-none font-semibold resize-none transition-all"
-                      rows="3" placeholder="Partage ton avis..." />
+                      className="input-field resize-none" rows="3" placeholder="Partage ton avis..." />
                   </div>
-                  <button onClick={submitComment}
-                    className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-2xl font-black hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1">
+                  <button onClick={submitComment} className="btn-primary w-full py-3">
                     Publier 🚀
                   </button>
                 </div>
+
                 <div className="space-y-4">
                   <h3 className="font-black text-gray-800 text-lg mb-4">Tous les commentaires ({comments.length})</h3>
                   {comments.length === 0 ? (
@@ -1341,11 +1282,12 @@ export default function CourseShareApp() {
                       <div key={comment._id} className="bg-white border-2 border-gray-200 rounded-2xl p-4 hover:border-purple-300 transition-all">
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex items-center gap-2">
-                            <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-3 py-1 rounded-full font-bold text-sm">{comment.user.username}</div>
+                            <div className="badge-user">{comment.user.username}</div>
                             {comment.rating && renderStars(comment.rating)}
                           </div>
                           {comment.user._id === user?.id && (
-                            <button onClick={() => deleteComment(comment._id)} className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 rounded-xl transition-all">
+                            <button onClick={() => deleteComment(comment._id)}
+                              className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 rounded-xl transition-all">
                               <Trash2 className="w-4 h-4" />
                             </button>
                           )}
@@ -1361,25 +1303,21 @@ export default function CourseShareApp() {
           </div>
         )}
 
-        {/* ── FIXED: PDF Viewer Modal utilise getPdfViewerUrl() ── */}
+        {/* Modal visionneuse PDF */}
         {selectedCourse && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-            <div className="bg-white rounded-3xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col">
+          <div className="modal-backdrop">
+            <div className="modal-box-xl">
               <div className="flex items-center justify-between p-6 border-b-2 border-gray-200">
                 <div>
                   <h2 className="text-3xl font-black text-gray-800">{selectedCourse.title}</h2>
                   <p className="text-lg text-purple-600 font-bold">Par {selectedCourse.owner.username}</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <a
-                    href={resolvePdfUrl(selectedCourse.filePath)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-4 py-3 rounded-2xl font-bold shadow-lg hover:shadow-xl hover:from-green-600 hover:to-emerald-600 transition-all transform hover:-translate-y-1"
-                  >
+                  <a href={resolvePdfUrl(selectedCourse.filePath)} target="_blank" rel="noopener noreferrer"
+                    className="btn-success py-3 px-4">
                     <Download className="w-5 h-5" />Ouvrir
                   </a>
-                  <button onClick={() => setSelectedCourse(null)} className="text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-2xl p-3 transition-all">
+                  <button onClick={() => setSelectedCourse(null)} className="modal-close-btn">
                     <X className="w-7 h-7" />
                   </button>
                 </div>
@@ -1388,7 +1326,7 @@ export default function CourseShareApp() {
                 <div className="bg-gray-100 rounded-3xl overflow-hidden shadow-inner">
                   <iframe
                     src={getPdfViewerUrl(selectedCourse.filePath)}
-                    className="w-full h-full min-h-[700px] border-0"
+                    className="pdf-viewer"
                     title={selectedCourse.title}
                   />
                 </div>
@@ -1396,6 +1334,7 @@ export default function CourseShareApp() {
             </div>
           </div>
         )}
+
       </div>
     </div>
   );

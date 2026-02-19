@@ -15,3 +15,432 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+@layer components {
+
+  /* ─── Layout général ─────────────────────────────────── */
+
+  .page-wrapper {
+    @apply min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500;
+  }
+
+  .content-container {
+    @apply max-w-7xl mx-auto px-4 py-6;
+  }
+
+  /* ─── Cartes / panneaux blancs ───────────────────────── */
+
+  .card {
+    @apply bg-white rounded-3xl shadow-xl p-6;
+  }
+
+  .card-hover {
+    @apply card transition-transform hover:scale-[1.01];
+  }
+
+  .card-lg {
+    @apply bg-white rounded-3xl shadow-2xl p-8;
+  }
+
+  /* ─── Boutons principaux ─────────────────────────────── */
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-bold
+           transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1;
+  }
+
+  .btn-primary {
+    @apply btn bg-gradient-to-r from-indigo-600 to-purple-600 text-white
+           hover:from-indigo-700 hover:to-purple-700;
+  }
+
+  .btn-success {
+    @apply btn bg-gradient-to-r from-green-500 to-emerald-500 text-white
+           hover:from-green-600 hover:to-emerald-600;
+  }
+
+  .btn-danger {
+    @apply btn bg-gradient-to-r from-red-500 to-pink-500 text-white
+           hover:from-red-600 hover:to-pink-600;
+  }
+
+  .btn-neutral {
+    @apply btn bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800
+           hover:from-gray-200 hover:to-gray-300;
+  }
+
+  .btn-full {
+    @apply btn-primary w-full py-5 text-lg font-black;
+  }
+
+  /* ─── Champs de formulaire ───────────────────────────── */
+
+  .input-field {
+    @apply w-full px-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl
+           text-gray-800 placeholder-gray-400 font-semibold
+           focus:outline-none focus:ring-4 focus:ring-purple-300 focus:border-purple-500
+           transition-all;
+  }
+
+  .input-with-icon {
+    @apply input-field pl-12;
+  }
+
+  /* ─── Badges / pills ─────────────────────────────────── */
+
+  .badge {
+    @apply px-3 py-1 rounded-full text-xs font-bold shadow-md;
+  }
+
+  .badge-user {
+    @apply badge bg-gradient-to-r from-purple-500 to-pink-500 text-white
+           flex items-center gap-1;
+  }
+
+  .badge-stat {
+    @apply flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold;
+  }
+
+  /* ─── Modals ─────────────────────────────────────────── */
+
+  .modal-backdrop {
+    @apply fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 backdrop-blur-sm;
+  }
+
+  .modal-box {
+    @apply bg-white rounded-3xl shadow-2xl max-w-md w-full p-8;
+  }
+
+  .modal-header {
+    @apply flex items-center justify-between mb-6;
+  }
+
+  .modal-title {
+    @apply text-2xl font-black text-gray-800;
+  }
+
+  .modal-close-btn {
+    @apply text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200
+           rounded-2xl p-2 transition-all;
+  }
+
+  /* ─── Logo / icône d'en-tête ─────────────────────────── */
+
+  .app-logo-wrap {
+    @apply inline-flex items-center justify-center w-20 h-20
+           bg-gradient-to-br from-indigo-600 to-purple-600 rounded-3xl
+           shadow-xl mb-6;
+  }
+
+  .app-title {
+    @apply text-5xl font-black bg-gradient-to-r from-indigo-600 to-purple-600
+           bg-clip-text text-transparent;
+  }
+
+  /* ─── Onglets de navigation ──────────────────────────── */
+
+  .tab-bar {
+    @apply bg-white rounded-3xl shadow-xl p-3 mb-6;
+  }
+
+  .tab-btn {
+    @apply py-4 px-6 rounded-2xl font-black transition-all transform hover:-translate-y-1
+           bg-gray-100 text-gray-600 hover:bg-gray-200;
+  }
+
+  .tab-btn-active {
+    @apply tab-btn bg-gradient-to-r from-indigo-600 to-purple-600 text-white
+           shadow-lg scale-105;
+  }
+
+  /* ─── Zone de dépôt (upload) ─────────────────────────── */
+
+  .drop-zone {
+    @apply flex flex-col items-center justify-center border-4 border-dashed border-purple-300
+           rounded-3xl p-12 cursor-pointer transition-all
+           hover:border-purple-500 hover:bg-purple-50;
+  }
+
+  /* ─── Spinner de chargement ──────────────────────────── */
+
+  .spinner {
+    @apply w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin;
+  }
+
+  .spinner-lg {
+    @apply w-12 h-12 border-4 border-purple-300 border-t-purple-600 rounded-full animate-spin;
+  }
+
+  /* ─── Alertes inline ─────────────────────────────────── */
+
+  .alert-error {
+    @apply bg-red-50 border-2 border-red-200 rounded-2xl p-4;
+  }
+
+  .alert-success {
+    @apply bg-green-50 border-2 border-green-200 rounded-2xl p-6;
+  }
+
+  .alert-info {
+    @apply bg-purple-50 border-2 border-purple-200 rounded-2xl p-4;
+  }
+
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   RESPONSIVE
+   CSS natif plutôt que @apply dans les media queries,
+   c'est plus lisible et ça évite les surprises Tailwind.
+═══════════════════════════════════════════════════════════ */
+
+/* ── Mobile (< 640px) ────────────────────────────────────── */
+@media (max-width: 639px) {
+
+  /* Titre plus compact */
+  .app-title {
+    font-size: 1.75rem;
+  }
+
+  /* Logo un peu plus petit */
+  .app-logo-wrap {
+    width: 3rem;
+    height: 3rem;
+    margin-bottom: 0.75rem;
+  }
+
+  /* Moins de padding sur les cartes */
+  .card,
+  .card-hover {
+    padding: 1rem;
+    border-radius: 1.25rem;
+  }
+
+  .card-lg {
+    padding: 1.25rem;
+    border-radius: 1.25rem;
+  }
+
+  /* container : moins de padding horizontal */
+  .content-container {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  /* Header de l'app : empilé en colonne */
+  .app-header-inner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .app-header-actions {
+    width: 100%;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .app-header-actions > * {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Onglets : on réduit le texte */
+  .tab-btn,
+  .tab-btn-active {
+    padding: 0.65rem 0.4rem;
+    font-size: 0.75rem;
+  }
+
+  /* Zone upload : moins de padding, textes centrés */
+  .drop-zone {
+    padding: 1.75rem 1rem;
+    border-radius: 1.25rem;
+  }
+
+  /* Barre de recherche : tout en colonne */
+  .search-bar-inner {
+    flex-direction: column;
+  }
+
+  .search-bar-inner select {
+    width: 100%;
+  }
+
+  /* Boutons dans les cartes de cours */
+  .btn {
+    padding: 0.55rem 0.7rem;
+    font-size: 0.82rem;
+  }
+
+  .btn-full {
+    padding-top: 0.85rem;
+    padding-bottom: 0.85rem;
+    font-size: 1rem;
+  }
+
+  /* Modals : quasi plein écran */
+  .modal-box {
+    padding: 1.25rem;
+    border-radius: 1.25rem;
+    max-height: 92vh;
+    overflow-y: auto;
+  }
+
+  .modal-title {
+    font-size: 1rem;
+  }
+
+  /* Viewer PDF réduit */
+  iframe {
+    min-height: 320px !important;
+    height: 320px !important;
+  }
+
+  /* Alertes */
+  .alert-info,
+  .alert-error,
+  .alert-success {
+    padding: 0.75rem;
+  }
+
+  /* Titre dans la vue publique */
+  .public-course-title {
+    font-size: 1.5rem;
+  }
+}
+
+/* ── Tablette (640px – 1023px) ───────────────────────────── */
+@media (min-width: 640px) and (max-width: 1023px) {
+
+  .app-title {
+    font-size: 2.25rem;
+  }
+
+  .app-logo-wrap {
+    width: 3.5rem;
+    height: 3.5rem;
+  }
+
+  .card-lg {
+    padding: 1.5rem;
+  }
+
+  .content-container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  /* Header : on permet le retour à la ligne proprement */
+  .app-header-actions {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  /* Zone upload : padding intermédiaire */
+  .drop-zone {
+    padding: 2.5rem 1.5rem;
+  }
+
+  /* Viewer PDF intermédiaire */
+  iframe {
+    min-height: 480px !important;
+    height: 480px !important;
+  }
+
+  /* Modals un peu plus larges */
+  .modal-box {
+    max-width: 85vw;
+  }
+
+  /* Onglets : on garde le texte mais un peu plus compact */
+  .tab-btn,
+  .tab-btn-active {
+    padding: 0.75rem 0.75rem;
+    font-size: 0.875rem;
+  }
+}
+
+/* ── Grand écran (>= 1280px) — finitions ─────────────────── */
+@media (min-width: 1280px) {
+
+  .content-container {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+
+  iframe {
+    min-height: 750px;
+  }
+}
+
+/* ─── Cartes de cours : anti-débordement ────────────────────
+   Le contenu (titre long, badges, boutons) ne doit jamais
+   sortir de la carte, quelle que soit la taille d'écran.
+──────────────────────────────────────────────────────────── */
+
+/* La carte elle-même ne dépasse jamais son parent */
+.course-card {
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Le titre tronqué sur une ligne max */
+.course-card-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* La zone header de la carte (titre + badge public/privé) */
+.course-card-header {
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Le badge public/privé ne rétrécit jamais */
+.course-card-status {
+  flex-shrink: 0;
+}
+
+/* Les boutons d'action du bas de carte ne débordent pas */
+.course-card-actions {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.course-card-actions .btn-primary,
+.course-card-actions .btn-success,
+.course-card-actions .btn-danger {
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Le nom du fichier dans le lien actif */
+.course-card .lien-actif-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Les stats (vues, dl, commentaires) passent en wrap si besoin */
+.course-card-stats {
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+/* ── Accessibilité : respect du prefers-reduced-motion ────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
